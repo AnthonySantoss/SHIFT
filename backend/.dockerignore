@@ -1,0 +1,5 @@
+node_modules
+npm-debug.log
+src/database/db.sqlite
+.git
+.env
