@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HeartPulse, Target, Users, Smartphone, CheckCircle, BookOpen } from 'lucide-react-native';
 import ApiService from '../../models/api.model';
 
-export default function MaioAmareloScreen({ isDarkMode, setActiveTab }) {
+export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshProfile }) {
   const [challenges, setChallenges] = useState([]);
   const [tips, setTips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTip, setSelectedTip] = useState(null);
+  const [readTipIds, setReadTipIds] = useState([]);
 
   // Theme colors
   const colors = {
@@ -22,13 +24,17 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab }) {
     let active = true;
     async function loadData() {
       try {
-        const [loadedChallenges, loadedTips] = await Promise.all([
+        const [loadedChallenges, loadedTips, storedReadTips] = await Promise.all([
           ApiService.fetchChallenges(),
-          ApiService.fetchTips()
+          ApiService.fetchTips(),
+          AsyncStorage.getItem('@shift_read_tip_ids')
         ]);
         if (active) {
           setChallenges(loadedChallenges);
           setTips(loadedTips);
+          if (storedReadTips) {
+            setReadTipIds(JSON.parse(storedReadTips));
+          }
           setLoading(false);
         }
       } catch (err) {
@@ -75,6 +81,26 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab }) {
       content: 'Atenção aos cruzamentos, visibilidade reduzida e peões. Reduza a velocidade em áreas residenciais e mantenha sempre as mãos no volante e o foco total na via.',
       iconColor: '#10B981'
     };
+  };
+
+  const handleCompleteTip = async (tip) => {
+    try {
+      if (tip && tip.points) {
+        await ApiService.addBonusPoints(tip.points);
+        if (refreshProfile) {
+          await refreshProfile();
+        }
+        
+        // Persist read status locally so that the tip disappears!
+        const updatedReadIds = [...readTipIds, tip.id];
+        setReadTipIds(updatedReadIds);
+        await AsyncStorage.setItem('@shift_read_tip_ids', JSON.stringify(updatedReadIds));
+      }
+    } catch (err) {
+      console.error('Error completing tip reading:', err);
+    } finally {
+      setSelectedTip(null);
+    }
   };
 
   if (loading) {
@@ -174,19 +200,30 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab }) {
           </View>
           
           <View style={styles.tipsList}>
-            {tips.map((t) => (
-              <TouchableOpacity 
-                key={t.id} 
-                style={[styles.tipItem, { backgroundColor: colors.bg }]} 
-                activeOpacity={0.7}
-                onPress={() => setSelectedTip(t)}
-              >
-                <Text style={[styles.tipTitle, { color: colors.title }]}>{t.title}</Text>
-                <View style={styles.ptsBadge}>
-                  <Text style={styles.ptsText}>+{t.points} PTS</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {tips.filter(t => !readTipIds.includes(t.id)).length === 0 ? (
+              <View style={styles.allReadContainer}>
+                <CheckCircle size={20} color="#10B981" />
+                <Text style={[styles.allReadText, { color: colors.title }]}>
+                  Parabéns! Já leu todas as dicas rápidas de segurança de hoje. 🎉
+                </Text>
+              </View>
+            ) : (
+              tips
+                .filter(t => !readTipIds.includes(t.id))
+                .map((t) => (
+                  <TouchableOpacity 
+                    key={t.id} 
+                    style={[styles.tipItem, { backgroundColor: colors.bg }]} 
+                    activeOpacity={0.7}
+                    onPress={() => setSelectedTip(t)}
+                  >
+                    <Text style={[styles.tipTitle, { color: colors.title }]}>{t.title}</Text>
+                    <View style={styles.ptsBadge}>
+                      <Text style={styles.ptsText}>+{t.points} PTS</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+            )}
           </View>
         </View>
       </ScrollView>
@@ -210,7 +247,7 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab }) {
               
               <TouchableOpacity 
                 style={styles.modalCloseBtn}
-                onPress={() => setSelectedTip(null)}
+                onPress={() => handleCompleteTip(selectedTip)}
                 activeOpacity={0.7}
               >
                 <Text style={styles.modalCloseBtnText}>Concluir Leitura (+{selectedTip.points} PTS)</Text>
@@ -500,5 +537,24 @@ const styles = StyleSheet.create({
     color: '#351603',
     fontSize: 12,
     fontWeight: '900',
+  },
+  allReadContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.15)',
+    marginTop: 2,
+  },
+  allReadText: {
+    fontSize: 10,
+    fontWeight: '800',
+    flex: 1,
+    lineHeight: 14,
   },
 });

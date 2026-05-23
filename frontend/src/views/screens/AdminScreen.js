@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { Settings, Target, Award, Plus, Trash2, Shield, Save } from 'lucide-react-native';
+import { Settings, Target, Award, Plus, Trash2, Shield, Save, BookOpen } from 'lucide-react-native';
 import ApiService from '../../models/api.model';
 
 export default function AdminScreen({ isDarkMode }) {
-  const [activeTab, setActiveTab] = useState('config'); // 'config', 'challenges', 'rewards'
+  const [activeTab, setActiveTab] = useState('config'); // 'config', 'challenges', 'rewards', 'tips'
   const [loading, setLoading] = useState(true);
 
   // States for configs
@@ -27,6 +27,11 @@ export default function AdminScreen({ isDarkMode }) {
   const [rProgress, setRProgress] = useState('');
   const [rColor, setRColor] = useState('#F59E0B');
 
+  // States for tips (Dicas Rápidas)
+  const [tips, setTips] = useState([]);
+  const [tTitle, setTTitle] = useState('');
+  const [tPoints, setTPoints] = useState('');
+
   // Theme colors
   const colors = {
     bg: isDarkMode ? '#0F1015' : '#F1F5F9',
@@ -44,10 +49,11 @@ export default function AdminScreen({ isDarkMode }) {
   const loadAllAdminData = async () => {
     setLoading(true);
     try {
-      const [loadedConfigs, loadedChallenges, loadedRewards] = await Promise.all([
+      const [loadedConfigs, loadedChallenges, loadedRewards, loadedTips] = await Promise.all([
         ApiService.fetchConfigs(),
         ApiService.fetchChallenges(), // Uses passenger fallback to get all
-        ApiService.fetchRewards()
+        ApiService.fetchRewards(),
+        ApiService.fetchTips()
       ]);
 
       setConfigs(loadedConfigs);
@@ -65,6 +71,7 @@ export default function AdminScreen({ isDarkMode }) {
       // Wait, let's load all challenges. To get all, we can just load the raw seeded challenges!
       setChallenges(loadedChallenges);
       setRewards(loadedRewards);
+      setTips(loadedTips);
       setLoading(false);
     } catch (err) {
       console.error('Error loading admin data:', err);
@@ -156,6 +163,37 @@ export default function AdminScreen({ isDarkMode }) {
     }
   };
 
+  // Create Tip (Dica Rápida)
+  const handleCreateTip = async () => {
+    if (!tTitle || !tPoints) {
+      Alert.alert('Erro', 'Preencha todos os campos da dica rápida.');
+      return;
+    }
+    try {
+      await ApiService.createTip({
+        title: tTitle,
+        points: parseInt(tPoints)
+      });
+      Alert.alert('Sucesso', 'Dica rápida lançada com sucesso!');
+      setTTitle('');
+      setTPoints('');
+      loadAllAdminData();
+    } catch (error) {
+      Alert.alert('Erro', 'Falha ao registar dica rápida.');
+    }
+  };
+
+  // Delete Tip
+  const handleDeleteTip = async (id) => {
+    try {
+      await ApiService.deleteTip(id);
+      Alert.alert('Sucesso', 'Dica rápida removida com sucesso.');
+      loadAllAdminData();
+    } catch (error) {
+      Alert.alert('Erro', 'Falha ao remover dica rápida.');
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.loadingBox, { backgroundColor: colors.bg }]}>
@@ -200,6 +238,14 @@ export default function AdminScreen({ isDarkMode }) {
         >
           <Award size={14} color={activeTab === 'rewards' ? '#F59E0B' : colors.text} />
           <Text style={[styles.tabText, { color: activeTab === 'rewards' ? '#F59E0B' : colors.text }]}>Vantagens</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setActiveTab('tips')}
+          style={[styles.tabItem, activeTab === 'tips' && styles.tabActive]}
+        >
+          <BookOpen size={14} color={activeTab === 'tips' ? '#F59E0B' : colors.text} />
+          <Text style={[styles.tabText, { color: activeTab === 'tips' ? '#F59E0B' : colors.text }]}>Dicas</Text>
         </TouchableOpacity>
       </View>
 
@@ -435,6 +481,65 @@ export default function AdminScreen({ isDarkMode }) {
                 <TouchableOpacity
                   style={styles.deleteBtn}
                   onPress={() => handleDeleteReward(r.id)}
+                  activeOpacity={0.7}
+                >
+                  <Trash2 size={16} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* 📖 TIPS TAB */}
+      {activeTab === 'tips' && (
+        <View style={styles.columnGap}>
+          {/* Create Form */}
+          <View style={[styles.adminCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.title }]}>CRIAR NOVA DICA RÁPIDA</Text>
+            
+            <View style={styles.formRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { color: colors.title }]}>Conteúdo da Dica</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
+                  placeholder="Ex: Distância de reação em pistas molhadas..."
+                  placeholderTextColor={colors.text}
+                  value={tTitle}
+                  onChangeText={setTTitle}
+                />
+              </View>
+              <View style={{ width: 85 }}>
+                <Text style={[styles.label, { color: colors.title }]}>Pontos</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
+                  placeholder="Ex: 80"
+                  placeholderTextColor={colors.text}
+                  value={tPoints}
+                  onChangeText={setTPoints}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.saveBtn} onPress={handleCreateTip} activeOpacity={0.8}>
+              <Plus size={16} color="#351603" />
+              <Text style={styles.saveBtnText}>Lançar Dica Rápida</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* List of Tips */}
+          <Text style={[styles.sectionHeading, { color: colors.title }]}>DICAS RÁPIDAS NO CATÁLOGO ({tips.length})</Text>
+          <View style={styles.itemsList}>
+            {tips.map((t) => (
+              <View key={t.id} style={[styles.itemCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.itemTitleText, { color: colors.title }]}>{t.title}</Text>
+                  <Text style={styles.itemPtsText}>+{t.points} PTS</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={() => handleDeleteTip(t.id)}
                   activeOpacity={0.7}
                 >
                   <Trash2 size={16} color="#EF4444" />

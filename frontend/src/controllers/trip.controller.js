@@ -4,9 +4,10 @@ import * as Location from 'expo-location';
 import { Accelerometer, Gyroscope } from 'expo-sensors';
 import ApiService from '../models/api.model';
 
-export function useTripController(soundEnabled, setNotification, refreshProfileCallback) {
+export function useTripController(soundEnabled, setNotification, refreshProfileCallback, isAuthenticated) {
   const [isDriving, setIsDriving] = useState(false);
   const [score, setScore] = useState(100);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [speed, setSpeed] = useState(0);
   const [brakingAlert, setBrakingAlert] = useState(false);
   const [speedingAlert, setSpeedingAlert] = useState(false);
@@ -15,11 +16,21 @@ export function useTripController(soundEnabled, setNotification, refreshProfileC
   const [tripSeconds, setTripSeconds] = useState(0);
   const [distance, setDistance] = useState(0.0);
   const [fatigueLevel, setFatigueLevel] = useState(10);
+  
+  // Real-time Weather Context
+  const [weatherInfo, setWeatherInfo] = useState({
+    isWetRoad: false,
+    description: 'Tempo Limpo',
+    temperature: 20,
+    icon: 'sun'
+  });
 
   // References for native watchers
   const locationSubscription = useRef(null);
   const accelSubscription = useRef(null);
   const gyroSubscription = useRef(null);
+  
+  const lastWeatherFetchTime = useRef(0);
   
   const timerRef = useRef(null);
   const appStateListener = useRef(null);
@@ -50,6 +61,46 @@ export function useTripController(soundEnabled, setNotification, refreshProfileC
       "Maio Amarelo: A paz no trânsito começa em si."
     ];
     showNotification("Dica de Trânsito", tips[Math.floor(Math.random() * tips.length)], "info");
+  };
+
+  // Fetch real weather immediately on mount using device location
+  useEffect(() => {
+    async function initWeather() {
+      if (!isAuthenticated) return;
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          if (loc && loc.coords) {
+            await fetchWeather(loc.coords.latitude, loc.coords.longitude);
+          }
+        } else {
+          setShowPermissionModal(true);
+        }
+      } catch (e) {
+        console.warn('Initial weather load failed:', e);
+      }
+    }
+    initWeather();
+  }, [isAuthenticated]);
+
+  const requestLocationPermission = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (loc && loc.coords) {
+          await fetchWeather(loc.coords.latitude, loc.coords.longitude);
+        }
+        showNotification("Localização Permitida", "O acesso ao GPS e à telemetria de condução foi ativado.", "success");
+      } else {
+        showNotification("Permissão Negada", "Algumas funcionalidades de condução e score podem ficar indisponíveis.", "warning");
+      }
+    } catch (e) {
+      console.error('Error requesting location permission:', e);
+    } finally {
+      setShowPermissionModal(false);
+    }
   };
 
   // 1. Telemetry GPS & Sensors Lifecycle
@@ -174,6 +225,57 @@ export function useTripController(soundEnabled, setNotification, refreshProfileC
   };
 
   // -------------------------------------------------------------
+  // REAL-TIME WEATHER API CALLER (OPEN-METEO API)
+  // -------------------------------------------------------------
+  const fetchWeather = async (latitude, longitude) => {
+    try {
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code`
+      );
+      const data = await response.json();
+      if (data && data.current) {
+        const temp = data.current.temperature_2m;
+        const code = data.current.weather_code;
+        
+        let isWet = false;
+        let desc = 'Tempo Limpo';
+        let iconName = 'sun';
+
+        // WMO Weather Codes (https://open-meteo.com/en/docs)
+        // 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99: Rain/Drizzle/Thunderstorms
+        // 71, 73, 75, 77, 85, 86: Snow
+        // 45, 48: Fog
+        if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) {
+          isWet = true;
+          desc = 'Chuva Detetada';
+          iconName = 'cloud-rain';
+        } else if ([71, 73, 75, 77, 85, 86].includes(code)) {
+          isWet = true;
+          desc = 'Neve Detetada';
+          iconName = 'snowflake';
+        } else if ([45, 48].includes(code)) {
+          isWet = true;
+          desc = 'Nevoeiro Detetado';
+          iconName = 'cloud-fog';
+        } else if ([1, 2, 3].includes(code)) {
+          desc = 'Parcialmente Nublado';
+          iconName = 'cloud';
+        }
+
+        setWeatherInfo({
+          isWetRoad: isWet,
+          description: desc,
+          temperature: Math.round(temp),
+          icon: iconName
+        });
+        console.log(`[WEATHER API] Successfully updated: ${desc} | ${temp}°C`);
+      }
+    } catch (error) {
+      console.warn('Weather API fetch failed:', error);
+    }
+  };
+
+  // -------------------------------------------------------------
   // REAL-TIME GPS WATCHER
   // -------------------------------------------------------------
   const startGpsWatching = async () => {
@@ -197,6 +299,13 @@ export function useTripController(soundEnabled, setNotification, refreshProfileC
         },
         (loc) => {
           if (!currentIsDriving.current) return;
+
+          // Smart real-time weather update (Throttle to fetch at most once every 5 minutes)
+          const now = Date.now();
+          if (now - lastWeatherFetchTime.current > 300000) {
+            lastWeatherFetchTime.current = now;
+            fetchWeather(loc.coords.latitude, loc.coords.longitude);
+          }
 
           // coords.speed is speed in meters per second
           const speedMps = loc.coords.speed || 0;
@@ -327,8 +436,12 @@ export function useTripController(soundEnabled, setNotification, refreshProfileC
     tripSeconds,
     distance,
     fatigueLevel,
+    weatherInfo,
     toggleTrip,
     handleSuddenBrake,
-    triggerSafeDrivingTip
+    triggerSafeDrivingTip,
+    showPermissionModal,
+    setShowPermissionModal,
+    requestLocationPermission
   };
 }

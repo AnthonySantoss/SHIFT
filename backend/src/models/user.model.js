@@ -7,7 +7,7 @@ class UserModel {
   }
 
   static async findById(id) {
-    const sql = `SELECT id, name, email, role, plate, created_at FROM users WHERE id = ?`;
+    const sql = `SELECT id, name, email, role, plate, bonus_points, created_at FROM users WHERE id = ?`;
     return await queryGet(sql, [id]);
   }
 
@@ -24,6 +24,11 @@ class UserModel {
       plate ? plate.toUpperCase().trim() : null
     ]);
     return result.id;
+  }
+
+  static async addBonusPoints(id, points) {
+    const sql = `UPDATE users SET bonus_points = bonus_points + ? WHERE id = ?`;
+    return await queryRun(sql, [points, id]);
   }
 }
 

@@ -1,5 +1,6 @@
 const DriverModel = require('../models/driver.model');
 const AuditModel = require('../models/audit.model');
+const UserModel = require('../models/user.model');
 
 class DriverController {
   static async searchDriver(req, res) {
@@ -67,7 +68,7 @@ class DriverController {
 
         const feedbacks = [
           { label: 'Auditor Cidadão', count: totalAudits },
-          { label: 'Pontos SHIFT', count: totalAudits * 100 },
+          { label: 'Pontos SHIFT', count: (totalAudits * 100) + (req.user.bonus_points || 0) },
           { label: 'Viagens Auditadas', count: totalAudits }
         ];
 
@@ -128,12 +129,12 @@ class DriverController {
       // Calculate dynamic average rating strictly from public SQLite audits
       const totalAuditsCount = audits.length;
       const sumStars = audits.reduce((acc, a) => acc + a.rating_stars, 0);
-      const dynamicRating = totalAuditsCount > 0 ? parseFloat((sumStars / totalAuditsCount).toFixed(1)) : 5.0;
+      const dynamicRating = totalAuditsCount > 0 ? parseFloat((sumStars / totalAuditsCount).toFixed(1)) : '--';
 
       // Dynamic Points computation relacional-style!
       feedbacks.push({
         label: 'Pontos SHIFT',
-        count: driver.trips * 150
+        count: (driver.trips * 150) + (req.user.bonus_points || 0)
       });
 
       return res.json({
@@ -158,6 +159,22 @@ class DriverController {
     } catch (error) {
       console.error('Error fetching self profile:', error);
       return res.status(500).json({ error: 'Erro interno ao carregar perfil do motorista.' });
+    }
+  }
+
+  static async addBonusPoints(req, res) {
+    try {
+      const { id } = req.user;
+      const { points } = req.body;
+      if (!points || typeof points !== 'number' || points <= 0) {
+        return res.status(400).json({ error: 'Quantidade de pontos inválida.' });
+      }
+
+      await UserModel.addBonusPoints(id, points);
+      return res.json({ success: true, message: `${points} pontos SHIFT adicionados com sucesso!` });
+    } catch (error) {
+      console.error('Error adding bonus points:', error);
+      return res.status(500).json({ error: 'Erro interno ao adicionar pontos.' });
     }
   }
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { CloudRain, Play, Square, AlertTriangle, Coffee, Smartphone } from 'lucide-react-native';
+import { CloudRain, Sun, Cloud, CloudFog, Snowflake, Play, Square, AlertTriangle, Coffee, Smartphone } from 'lucide-react-native';
 
 export default function DashboardScreen({ isDarkMode, controller }) {
   const {
@@ -16,6 +16,7 @@ export default function DashboardScreen({ isDarkMode, controller }) {
     tripSeconds,
     distance,
     fatigueLevel,
+    weatherInfo,
     toggleTrip,
     handleSuddenBrake,
   } = controller;
@@ -50,16 +51,98 @@ export default function DashboardScreen({ isDarkMode, controller }) {
     return '#EF4444'; // Red danger
   };
 
+  // Dynamic Weather Visual Data Builder
+  const getWeatherCardData = () => {
+    const { isWetRoad, description, temperature, icon } = weatherInfo || {
+      isWetRoad: false,
+      description: 'Tempo Limpo',
+      temperature: 20,
+      icon: 'sun'
+    };
+
+    if (icon === 'cloud-rain') {
+      return {
+        title: `${description} (${temperature}°C)`,
+        subtitle: 'Pista escorregadia. A distância de travagem aumenta. Reduza a velocidade.',
+        bgColor: isDarkMode ? 'rgba(59, 130, 246, 0.12)' : '#E0F2FE',
+        borderColor: isDarkMode ? 'rgba(59, 130, 246, 0.25)' : '#BAE6FD',
+        titleColor: '#0284C7',
+        subColor: '#0369A1',
+        icon: <CloudRain size={20} color="#0284C7" />
+      };
+    }
+    if (icon === 'snowflake') {
+      return {
+        title: `${description} (${temperature}°C)`,
+        subtitle: 'Pista com acumulação de neve/gelo. Aderência extremamente reduzida. Cuidado máximo.',
+        bgColor: isDarkMode ? 'rgba(6, 182, 212, 0.12)' : '#ECFEFF',
+        borderColor: isDarkMode ? 'rgba(6, 182, 212, 0.25)' : '#CFFAFE',
+        titleColor: '#0891B2',
+        subColor: '#0E7490',
+        icon: <Snowflake size={20} color="#0891B2" />
+      };
+    }
+    if (icon === 'cloud-fog') {
+      return {
+        title: `${description} (${temperature}°C)`,
+        subtitle: 'Visibilidade muito reduzida devido a nevoeiro intenso. Utilize faróis médios.',
+        bgColor: isDarkMode ? 'rgba(100, 116, 139, 0.12)' : '#F1F5F9',
+        borderColor: isDarkMode ? 'rgba(100, 116, 139, 0.25)' : '#E2E8F0',
+        titleColor: '#475569',
+        subColor: '#334155',
+        icon: <CloudFog size={20} color="#475569" />
+      };
+    }
+    if (icon === 'cloud') {
+      return {
+        title: `${description} (${temperature}°C)`,
+        subtitle: 'Tempo nublado com pista seca. Conduza com a atenção habitual.',
+        bgColor: isDarkMode ? 'rgba(148, 163, 184, 0.08)' : '#F8FAFC',
+        borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.15)' : '#F1F5F9',
+        titleColor: isDarkMode ? '#94A3B8' : '#475569',
+        subColor: isDarkMode ? '#64748B' : '#64748B',
+        icon: <Cloud size={20} color={isDarkMode ? '#94A3B8' : '#475569'} />
+      };
+    }
+    
+    // Default Sun / Clear
+    return {
+      title: `${description} (${temperature}°C)`,
+      subtitle: 'Pista totalmente seca. Condições ideais para conduzir. Boa viagem!',
+      bgColor: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : '#ECFDF5',
+      borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#D1FAE5',
+      titleColor: '#059669',
+      subColor: '#047857',
+      icon: <Sun size={20} color="#10B981" />
+    };
+  };
+
+  const weatherCard = getWeatherCardData();
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      {/* Wet Road Rain Alert (Safety Warning Context) */}
-      <View style={styles.rainAlertCard}>
-        <View style={styles.rainIconBadge}>
-          <CloudRain size={20} color="#3B82F6" />
+      {/* Dynamic Real-time Weather Context Card */}
+      <View style={[
+        styles.rainAlertCard, 
+        { 
+          backgroundColor: weatherCard.bgColor, 
+          borderColor: weatherCard.borderColor,
+          borderWidth: 1
+        }
+      ]}>
+        <View style={[
+          styles.rainIconBadge, 
+          { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }
+        ]}>
+          {weatherCard.icon}
         </View>
         <View style={styles.rainTextContainer}>
-          <Text style={styles.rainTitle}>Pista Molhada Detetada</Text>
-          <Text style={styles.rainSubtitle}>A distância de travagem aumenta. Reduza a velocidade.</Text>
+          <Text style={[styles.rainTitle, { color: weatherCard.titleColor }]}>
+            {weatherCard.title}
+          </Text>
+          <Text style={[styles.rainSubtitle, { color: weatherCard.subColor }]}>
+            {weatherCard.subtitle}
+          </Text>
         </View>
       </View>
 

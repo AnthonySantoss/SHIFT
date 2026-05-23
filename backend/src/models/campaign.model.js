@@ -21,6 +21,19 @@ class CampaignModel {
     return await queryAll(sql);
   }
 
+  static async createTip(title, points) {
+    const sql = `
+      INSERT INTO campaign_tips (title, points)
+      VALUES (?, ?)
+    `;
+    return await queryRun(sql, [title, parseInt(points)]);
+  }
+
+  static async deleteTip(id) {
+    const sql = `DELETE FROM campaign_tips WHERE id = ?`;
+    return await queryRun(sql, [id]);
+  }
+
   static async createChallenge(title, description, points, role_restriction) {
     const sql = `
       INSERT INTO campaign_challenges (title, description, points, role_restriction)

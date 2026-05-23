@@ -3,10 +3,18 @@ import Constants from 'expo-constants';
 
 const getBaseUrl = () => {
   // Use the verified absolute host LAN IP address of your machine
-  const LAN_IP = '192.168.0.22';
+  let LAN_IP = '192.168.0.24';
+  
+  // Extract dynamically from Expo configuration if running in development mode
+  if (Constants.expoConfig && Constants.expoConfig.hostUri) {
+    const host = Constants.expoConfig.hostUri.split(':').shift();
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      LAN_IP = host;
+    }
+  }
   
   // Using the absolute LAN IP is bulletproof for both physical Wi-Fi devices and emulators!
-  console.log(`[SHIFT TELETRIY] Pointing API server directly to: http://${LAN_IP}:3333/api`);
+  console.log(`[SHIFT TELEMETRY] Pointing API server directly to: http://${LAN_IP}:3333/api`);
   return `http://${LAN_IP}:3333/api`;
 };
 
@@ -208,6 +216,23 @@ class ApiService {
     }
   }
 
+  static async addBonusPoints(points) {
+    try {
+      const response = await fetch(`${BASE_URL}/clube/points`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ points }),
+      });
+      if (!response.ok) {
+        throw new Error('Erro ao adicionar pontos no Clube SHIFT.');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('ApiService.addBonusPoints error:', error);
+      throw error;
+    }
+  }
+
   static async fetchConfigs() {
     try {
       const response = await fetch(`${BASE_URL}/config`, {
@@ -303,6 +328,39 @@ class ApiService {
       return await response.json();
     } catch (error) {
       console.error('ApiService.deleteReward error:', error);
+      throw error;
+    }
+  }
+
+  static async createTip(tipData) {
+    try {
+      const response = await fetch(`${BASE_URL}/admin/tips`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(tipData),
+      });
+      if (!response.ok) {
+        throw new Error('Erro ao criar dica rápida.');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('ApiService.createTip error:', error);
+      throw error;
+    }
+  }
+
+  static async deleteTip(id) {
+    try {
+      const response = await fetch(`${BASE_URL}/admin/tips/${id}`, {
+        method: 'DELETE',
+        headers: this.getHeaders(),
+      });
+      if (!response.ok) {
+        throw new Error('Erro ao excluir dica rápida.');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('ApiService.deleteTip error:', error);
       throw error;
     }
   }

@@ -26,6 +26,7 @@ router.post('/trips', authMiddleware, TripController.saveTrip);
 router.get('/campaign/challenges', authMiddleware, CampaignController.getChallenges);
 router.get('/campaign/tips', authMiddleware, CampaignController.getTips);
 router.get('/clube/rewards', authMiddleware, CampaignController.getRewards);
+router.post('/clube/points', authMiddleware, DriverController.addBonusPoints);
 router.get('/config', authMiddleware, AdminController.getConfigs);
 
 // Admin-Only Protected endpoints (Requires JWT + Admin Role)
@@ -35,5 +36,7 @@ router.post('/admin/challenges', authMiddleware, adminMiddleware, AdminControlle
 router.delete('/admin/challenges/:id', authMiddleware, adminMiddleware, AdminController.deleteChallenge);
 router.post('/admin/rewards', authMiddleware, adminMiddleware, AdminController.createReward);
 router.delete('/admin/rewards/:id', authMiddleware, adminMiddleware, AdminController.deleteReward);
+router.post('/admin/tips', authMiddleware, adminMiddleware, AdminController.createTip);
+router.delete('/admin/tips/:id', authMiddleware, adminMiddleware, AdminController.deleteTip);
 
 module.exports = router;

@@ -28,6 +28,7 @@ db.serialize(() => {
       password_hash TEXT NOT NULL,
       role TEXT CHECK(role IN ('driver', 'passenger', 'admin')) NOT NULL,
       plate TEXT, -- Assigned if role is 'driver'
+      bonus_points INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -225,11 +226,11 @@ db.serialize(() => {
     {
       plate: 'XYZ-1992',
       name: 'João Silva', // Public profile for search sync
-      score: 95,
-      trips: 142,
+      score: 100,
+      trips: 0,
       status: 'excellent',
-      badges: JSON.stringify(['Direção Suave', 'Exigiu Cinto', 'Muito Focado']),
-      rating: 4.8
+      badges: JSON.stringify([]),
+      rating: 5.0
     }
   ];
 
@@ -274,74 +275,6 @@ db.serialize(() => {
     historyStmt.run(anaId, "Ontem, 14:45", 82, "30 min", "warning", "1 Travagem Brusca Leve");
 
     historyStmt.finalize();
-
-    // Seeding audits/reviews for XYZ-1992 (The logged in user) to start with beautiful history
-    const auditStmt = db.prepare(`
-      INSERT INTO audits (driver_plate, road_context, weather_context, score, rating_stars, positive_actions, infractions, feedback, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    auditStmt.run(
-      'XYZ-1992', 
-      'Via Urbana (Chuva)', 
-      'chuva', 
-      98, 
-      5, 
-      JSON.stringify(['Direção Suave', 'Muito Focado']), 
-      JSON.stringify([]), 
-      'Manteve excelente distância de segurança na pista molhada.',
-      '2026-05-21 14:30:00'
-    );
-
-    auditStmt.run(
-      'XYZ-1992', 
-      'Autoestrada', 
-      'limpo', 
-      90, 
-      4, 
-      JSON.stringify(['Velocidade Adequada']), 
-      JSON.stringify([]), 
-      'Respeitou sempre os limites de velocidade da via.',
-      '2026-05-21 10:15:00'
-    );
-
-    auditStmt.run(
-      'XYZ-1992', 
-      'Via Urbana (Noite)', 
-      'noite', 
-      100, 
-      5, 
-      JSON.stringify(['Direção Suave', 'Atenção ao Trânsito']), 
-      JSON.stringify([]), 
-      'Muita atenção nos cruzamentos escuros e passadeiras.',
-      '2026-05-20 18:45:00'
-    );
-
-    auditStmt.run(
-      'XYZ-1992', 
-      'Via Urbana', 
-      'limpo', 
-      95, 
-      5, 
-      JSON.stringify(['Direção Suave', 'Atenção ao Trânsito']), 
-      JSON.stringify([]), 
-      'Condução defensiva impecável. Evitou um acidente com um motociclista.',
-      '2026-05-20 15:20:00'
-    );
-
-    auditStmt.run(
-      'XYZ-1992', 
-      'Autoestrada (Chuva)', 
-      'chuva', 
-      75, 
-      3, 
-      JSON.stringify(['Uso do Cinto']), 
-      JSON.stringify(['Travagem Brusca']), 
-      'Deu uma freada brusca no semáforo amarelo, mas reduziu a velocidade depois.',
-      '2026-05-18 09:00:00'
-    );
-
-    auditStmt.finalize();
 
     // 6. Seed Challenges
     const challengeStmt = db.prepare(`

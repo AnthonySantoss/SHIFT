@@ -75,6 +75,31 @@ class AdminController {
       return res.status(500).json({ error: 'Erro ao remover vantagem.' });
     }
   }
+
+  static async createTip(req, res) {
+    try {
+      const { title, points } = req.body;
+      if (!title || points === undefined) {
+        return res.status(400).json({ error: 'Campos incompletos para criar dica rápida.' });
+      }
+      const result = await CampaignModel.createTip(title, parseInt(points));
+      return res.json({ id: result.id, title, points });
+    } catch (error) {
+      console.error('Error creating tip:', error);
+      return res.status(500).json({ error: 'Erro ao registar dica rápida.' });
+    }
+  }
+
+  static async deleteTip(req, res) {
+    try {
+      const { id } = req.params;
+      await CampaignModel.deleteTip(id);
+      return res.json({ success: true, message: 'Dica rápida removida com sucesso.' });
+    } catch (error) {
+      console.error('Error deleting tip:', error);
+      return res.status(500).json({ error: 'Erro ao remover dica rápida.' });
+    }
+  }
 }
 
 module.exports = AdminController;

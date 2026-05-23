@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, Platform, ActivityIndicator } from 'react-native';
-import { HeartPulse, Car, Users, Award, History, ShieldCheck } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, Platform, ActivityIndicator, Modal } from 'react-native';
+import { HeartPulse, Car, Users, Award, History, ShieldCheck, MapPin } from 'lucide-react-native';
 
 // Import Views
 import Header from './src/views/components/Header';
@@ -43,7 +43,7 @@ export default function App() {
   const authController = useAuthController(setNotification, refreshProfile);
 
   // 2. Initialize secondary trip & audit controllers
-  const tripController = useTripController(soundEnabled, setNotification, refreshProfile);
+  const tripController = useTripController(soundEnabled, setNotification, refreshProfile, authController.isAuthenticated);
   const auditController = useAuditController(soundEnabled, setNotification, refreshProfile);
 
   // 3. Tab State & Auto Tab filter depending on logged-in user role
@@ -145,7 +145,7 @@ export default function App() {
       {/* Main Tab View Switcher */}
       <View style={[styles.mainContent, { backgroundColor: colors.bg }]}>
         {activeTab === 'maioAmarelo' && (
-          <MaioAmareloScreen isDarkMode={isDarkMode} setActiveTab={setActiveTab} />
+          <MaioAmareloScreen isDarkMode={isDarkMode} setActiveTab={setActiveTab} refreshProfile={refreshProfile} />
         )}
         {activeTab === 'dashboard' && isDriver && (
           <DashboardScreen isDarkMode={isDarkMode} controller={tripController} />
@@ -198,6 +198,54 @@ export default function App() {
           </>
         )}
       </View>
+
+      {/* 📍 CUSTOM STYLED LOCATION PERMISSION MODAL */}
+      <Modal
+        visible={!!tripController.showPermissionModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => tripController.setShowPermissionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#171923' : '#FFFFFF', borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}>
+            {/* Styled Pin Icon Ring */}
+            <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}>
+              <MapPin size={30} color="#F59E0B" />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+              Permissão de Localização
+            </Text>
+            
+            <Text style={[styles.modalDescription, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
+              O SHIFT necessita de aceder à sua localização para monitorizar a velocidade em tempo real, detetar travagens bruscas, calcular o seu score de condução comunitária e atualizar as condições da pista.
+            </Text>
+
+            {/* Action Buttons */}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}
+                onPress={() => tripController.setShowPermissionModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.cancelBtnText, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
+                  Agora Não
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmBtn}
+                onPress={tripController.requestLocationPermission}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.confirmBtnText}>
+                  Permitir Acesso
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -267,5 +315,76 @@ const styles = StyleSheet.create({
   navText: {
     fontSize: 8,
     fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 28,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  confirmBtn: {
+    flex: 1,
+    backgroundColor: '#F59E0B',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#351603',
   },
 });
