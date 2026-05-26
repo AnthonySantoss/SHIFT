@@ -3,12 +3,12 @@ import Constants from 'expo-constants';
 
 const getBaseUrl = () => {
   // Use the verified absolute host LAN IP address of your machine
-  let LAN_IP = '192.168.0.24';
+  let LAN_IP = '192.168.1.33';
   
   // Extract dynamically from Expo configuration if running in development mode
   if (Constants.expoConfig && Constants.expoConfig.hostUri) {
     const host = Constants.expoConfig.hostUri.split(':').shift();
-    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1') && !host.includes('exp.direct')) {
       LAN_IP = host;
     }
   }

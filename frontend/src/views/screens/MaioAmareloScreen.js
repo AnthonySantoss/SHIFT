@@ -53,34 +53,12 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshPro
     return <Target size={20} color="#F59E0B" />;
   };
 
-  const getTipContent = (title) => {
-    const t = title.toLowerCase();
-    if (t.includes('cinto') || t.includes('trás')) {
-      return {
-        subtitle: 'Mito vs Fato',
-        content: 'Fato: O cinto no banco de trás é obrigatório e vital. Em caso de colisão a 50 km/h, um passageiro sem cinto no banco de trás é projetado para a frente com um impacto equivalente ao peso de um elefante de 3 toneladas, esmagando o condutor.',
-        iconColor: '#F59E0B'
-      };
-    }
-    if (t.includes('fadiga') || t.includes('volante')) {
-      return {
-        subtitle: 'Fisiologia da Fadiga',
-        content: 'Fato: Conduzir com sono ou fadiga severa equivale a conduzir sob o efeito do álcool. Após 19 horas sem dormir, os tempos de reação e reflexos equivalem a uma taxa de alcoolemia de 0,5 g/l. Faça pausas a cada 2 horas.',
-        iconColor: '#EF4444'
-      };
-    }
-    if (t.includes('distância') || t.includes('pistas') || t.includes('chuva')) {
-      return {
-        subtitle: 'Física da Reação',
-        content: 'Fato: Em pistas molhadas, a distância de travagem do carro duplica em comparação ao asfalto seco devido à redução dramática do atrito dos pneus. Aumente a distância de segurança para pelo menos 4 segundos.',
-        iconColor: '#3B82F6'
-      };
-    }
-    return {
-      subtitle: 'Condução Defensiva',
-      content: 'Atenção aos cruzamentos, visibilidade reduzida e peões. Reduza a velocidade em áreas residenciais e mantenha sempre as mãos no volante e o foco total na via.',
-      iconColor: '#10B981'
-    };
+  const getTipIconColor = (subtitle) => {
+    const s = subtitle ? subtitle.toLowerCase() : '';
+    if (s.includes('mito') || s.includes('fato')) return '#F59E0B';
+    if (s.includes('fadiga') || s.includes('sono')) return '#EF4444';
+    if (s.includes('física') || s.includes('reação') || s.includes('pista')) return '#3B82F6';
+    return '#10B981';
   };
 
   const handleCompleteTip = async (tip) => {
@@ -238,12 +216,12 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshPro
           />
           <View style={styles.modalCenteredView}>
             <View style={[styles.modalCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-              <View style={[styles.modalIconBadge, { backgroundColor: getTipContent(selectedTip.title).iconColor + '1C' }]}>
-                <BookOpen size={24} color={getTipContent(selectedTip.title).iconColor} />
+              <View style={[styles.modalIconBadge, { backgroundColor: getTipIconColor(selectedTip.subtitle) + '1C' }]}>
+                <BookOpen size={24} color={getTipIconColor(selectedTip.subtitle)} />
               </View>
-              <Text style={styles.modalSub}>{getTipContent(selectedTip.title).subtitle.toUpperCase()}</Text>
+              <Text style={styles.modalSub}>{selectedTip.subtitle ? selectedTip.subtitle.toUpperCase() : ''}</Text>
               <Text style={[styles.modalTitle, { color: colors.title }]}>{selectedTip.title}</Text>
-              <Text style={[styles.modalBody, { color: colors.text }]}>{getTipContent(selectedTip.title).content}</Text>
+              <Text style={[styles.modalBody, { color: colors.text }]}>{selectedTip.content}</Text>
               
               <TouchableOpacity 
                 style={styles.modalCloseBtn}

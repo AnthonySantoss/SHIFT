@@ -78,12 +78,15 @@ class AdminController {
 
   static async createTip(req, res) {
     try {
-      const { title, points } = req.body;
+      const { title, subtitle, content, points } = req.body;
       if (!title || points === undefined) {
         return res.status(400).json({ error: 'Campos incompletos para criar dica rápida.' });
       }
-      const result = await CampaignModel.createTip(title, parseInt(points));
-      return res.json({ id: result.id, title, points });
+      const finalSubtitle = subtitle || 'Condução Defensiva';
+      const finalContent = content || 'Mantenha foco na pista e atenção aos peões e outros motoristas.';
+      
+      const result = await CampaignModel.createTip(title, finalSubtitle, finalContent, parseInt(points));
+      return res.json({ id: result.id, title, subtitle: finalSubtitle, content: finalContent, points });
     } catch (error) {
       console.error('Error creating tip:', error);
       return res.status(500).json({ error: 'Erro ao registar dica rápida.' });

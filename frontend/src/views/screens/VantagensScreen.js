@@ -93,23 +93,8 @@ export default function VantagensScreen({ isDarkMode, score, profileData }) {
 
       <View style={styles.rewardsList}>
         {rewards.map((meta) => {
-          // Calculate reward progress dynamically based on actual driving activity
-          const totalTrips = profileData?.totalTrips || 0;
-          const t = meta.title.toLowerCase();
-          
-          let progress = 0;
-          if (totalTrips > 0) {
-            if (t.includes('combustível')) {
-              progress = Math.min(85, totalTrips * 12);
-            } else if (t.includes('vip') || t.includes('prioridade')) {
-              progress = Math.min(100, totalTrips * 10);
-            } else if (t.includes('lavagem')) {
-              progress = Math.min(60, totalTrips * 12);
-            } else {
-              progress = Math.min(100, totalTrips * 15);
-            }
-          }
-          
+          // Read dynamic progress computed and returned by the secure relational API
+          const progress = meta.progress || 0;
           const isUnlocked = progress >= 100;
 
           return (

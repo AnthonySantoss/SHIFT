@@ -2,6 +2,10 @@ const { queryAll, queryRun } = require('../config/db');
 
 class CampaignModel {
   static async getChallenges(role) {
+    if (role === 'admin') {
+      const sql = `SELECT * FROM campaign_challenges ORDER BY id ASC`;
+      return await queryAll(sql);
+    }
     // Returns challenges restricting by role or applicable to all
     const sql = `
       SELECT * FROM campaign_challenges 
@@ -21,12 +25,12 @@ class CampaignModel {
     return await queryAll(sql);
   }
 
-  static async createTip(title, points) {
+  static async createTip(title, subtitle, content, points) {
     const sql = `
-      INSERT INTO campaign_tips (title, points)
-      VALUES (?, ?)
+      INSERT INTO campaign_tips (title, subtitle, content, points)
+      VALUES (?, ?, ?, ?)
     `;
-    return await queryRun(sql, [title, parseInt(points)]);
+    return await queryRun(sql, [title, subtitle, content, parseInt(points)]);
   }
 
   static async deleteTip(id) {

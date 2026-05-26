@@ -5,8 +5,12 @@ class TripController {
   static async saveTrip(req, res) {
     try {
       const { score, speedAvg, fatigueMax, distance, durationSeconds } = req.body;
-      const selfPlate = req.user.plate || 'XYZ-1992';
+      const selfPlate = req.user.plate;
       const selfId = req.user.id;
+
+      if (!selfPlate && req.user.role === 'driver') {
+        return res.status(400).json({ error: 'Nenhum veículo registado para este motorista.' });
+      }
 
       const tripId = await TripModel.create({
         driverId: selfId,

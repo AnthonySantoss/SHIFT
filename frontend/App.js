@@ -88,6 +88,54 @@ export default function App() {
         <Notification notification={notification} setNotification={setNotification} />
         
         <AuthScreen isDarkMode={isDarkMode} controller={authController} />
+
+        {/* 📍 CUSTOM STYLED LOCATION PERMISSION MODAL */}
+        <Modal
+          visible={!!tripController.showPermissionModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => tripController.setShowPermissionModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#171923' : '#FFFFFF', borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}>
+              {/* Styled Pin Icon Ring */}
+              <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}>
+                <MapPin size={30} color="#F59E0B" />
+              </View>
+
+              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                Permissão de Localização
+              </Text>
+              
+              <Text style={[styles.modalDescription, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
+                O SHIFT necessita de aceder à sua localização para monitorizar a velocidade em tempo real, detetar travagens bruscas, calcular o seu score de condução comunitária e atualizar as condições da pista.
+              </Text>
+
+              {/* Action Buttons */}
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}
+                  onPress={() => tripController.setShowPermissionModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.cancelBtnText, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
+                    Agora Não
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.confirmBtn}
+                  onPress={tripController.requestLocationPermission}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.confirmBtnText}>
+                    Permitir Acesso
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }

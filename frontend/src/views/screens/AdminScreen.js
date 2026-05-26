@@ -26,10 +26,16 @@ export default function AdminScreen({ isDarkMode }) {
   const [rDesc, setRDesc] = useState('');
   const [rProgress, setRProgress] = useState('');
   const [rColor, setRColor] = useState('#F59E0B');
+  // Structured redemption requirements
+  const [rScoreType, setRScoreType] = useState('maior'); // 'maior' or 'menor'
+  const [rScoreValue, setRScoreValue] = useState('');
+  const [rDuration, setRDuration] = useState('');
 
   // States for tips (Dicas Rápidas)
   const [tips, setTips] = useState([]);
   const [tTitle, setTTitle] = useState('');
+  const [tSubtitle, setTSubtitle] = useState('');
+  const [tContent, setTContent] = useState('');
   const [tPoints, setTPoints] = useState('');
 
   // Theme colors
@@ -131,20 +137,22 @@ export default function AdminScreen({ isDarkMode }) {
 
   // Create Reward
   const handleCreateReward = async () => {
-    if (!rTitle || !rDesc || !rProgress) {
-      Alert.alert('Erro', 'Preencha todos os campos da vantagem.');
+    if (!rTitle || !rScoreValue || !rDuration || !rProgress) {
+      Alert.alert('Erro', 'Preencha todos os campos estruturados da vantagem.');
       return;
     }
     try {
+      const compiledDesc = `Mantenha Score ${rScoreType === 'maior' ? '>' : '<'} ${rScoreValue} por ${rDuration} para resgatar.`;
       await ApiService.createReward({
         title: rTitle,
-        description: rDesc,
+        description: compiledDesc,
         progress: parseInt(rProgress),
         color: rColor
       });
       Alert.alert('Sucesso', 'Vantagem adicionada ao Clube!');
       setRTitle('');
-      setRDesc('');
+      setRScoreValue('');
+      setRDuration('');
       setRProgress('');
       loadAllAdminData();
     } catch (error) {
@@ -165,17 +173,21 @@ export default function AdminScreen({ isDarkMode }) {
 
   // Create Tip (Dica Rápida)
   const handleCreateTip = async () => {
-    if (!tTitle || !tPoints) {
-      Alert.alert('Erro', 'Preencha todos os campos da dica rápida.');
+    if (!tTitle || !tSubtitle || !tContent || !tPoints) {
+      Alert.alert('Erro', 'Preencha todos os campos da dica rápida (Título, Subtítulo, Fato e Pontos).');
       return;
     }
     try {
       await ApiService.createTip({
         title: tTitle,
+        subtitle: tSubtitle,
+        content: tContent,
         points: parseInt(tPoints)
       });
       Alert.alert('Sucesso', 'Dica rápida lançada com sucesso!');
       setTTitle('');
+      setTSubtitle('');
+      setTContent('');
       setTPoints('');
       loadAllAdminData();
     } catch (error) {
@@ -423,14 +435,48 @@ export default function AdminScreen({ isDarkMode }) {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.title }]}>Requisitos de Resgate</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
-                placeholder="Ex: Mantenha score de condução > 90 por 7 dias."
-                placeholderTextColor={colors.text}
-                value={rDesc}
-                onChangeText={setRDesc}
-              />
+              <Text style={[styles.label, { color: colors.title }]}>Regra de Score para Resgate</Text>
+              <View style={styles.selectorRow}>
+                {['maior', 'menor'].map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.selectorItem,
+                      { borderColor: colors.border, backgroundColor: colors.bg },
+                      rScoreType === type && styles.selectorActive
+                    ]}
+                    onPress={() => setRScoreType(type)}
+                  >
+                    <Text style={[styles.selectorText, { color: rScoreType === type ? '#F59E0B' : colors.text }]}>
+                      {type === 'maior' ? 'Score Maior (>)' : 'Score Menor (<)'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { color: colors.title }]}>Valor de Score Requerido</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
+                  placeholder="Ex: 90"
+                  placeholderTextColor={colors.text}
+                  value={rScoreValue}
+                  onChangeText={setRScoreValue}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={{ flex: 1.2 }}>
+                <Text style={[styles.label, { color: colors.title }]}>Tempo / Duração</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
+                  placeholder="Ex: 7 dias (ou 5 corridas)"
+                  placeholderTextColor={colors.text}
+                  value={rDuration}
+                  onChangeText={setRDuration}
+                />
+              </View>
             </View>
 
             <View style={styles.formGroup}>
@@ -500,13 +546,36 @@ export default function AdminScreen({ isDarkMode }) {
             
             <View style={styles.formRow}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { color: colors.title }]}>Conteúdo da Dica</Text>
+                <Text style={[styles.label, { color: colors.title }]}>Título da Dica</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
-                  placeholder="Ex: Distância de reação em pistas molhadas..."
+                  placeholder="Ex: Riscos da fadiga ao volante"
                   placeholderTextColor={colors.text}
                   value={tTitle}
                   onChangeText={setTTitle}
+                />
+              </View>
+              <View style={{ width: 140 }}>
+                <Text style={[styles.label, { color: colors.title }]}>Subtítulo / Categoria</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
+                  placeholder="Ex: Fisiologia da Fadiga"
+                  placeholderTextColor={colors.text}
+                  value={tSubtitle}
+                  onChangeText={setTSubtitle}
+                />
+              </View>
+            </View>
+
+            <View style={styles.formRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.label, { color: colors.title }]}>Fato / Conteúdo Pedagógico</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.title }]}
+                  placeholder="Ex: Fato: Conduzir com sono equivale a..."
+                  placeholderTextColor={colors.text}
+                  value={tContent}
+                  onChangeText={setTContent}
                 />
               </View>
               <View style={{ width: 85 }}>
@@ -534,7 +603,13 @@ export default function AdminScreen({ isDarkMode }) {
             {tips.map((t) => (
               <View key={t.id} style={[styles.itemCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.itemTitleText, { color: colors.title }]}>{t.title}</Text>
+                  <View style={styles.itemHeader}>
+                    <Text style={[styles.itemTitleText, { color: colors.title }]}>{t.title}</Text>
+                    <View style={styles.roleBadge}>
+                      <Text style={styles.roleBadgeText}>{t.subtitle ? t.subtitle.toUpperCase() : 'GERAL'}</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.itemDescText, { color: colors.text }]}>{t.content}</Text>
                   <Text style={styles.itemPtsText}>+{t.points} PTS</Text>
                 </View>
                 <TouchableOpacity

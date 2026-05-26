@@ -93,10 +93,36 @@ class DriverController {
         });
       }
 
+      if (role === 'admin') {
+        // -------------------------------------------------------------
+        // ADMIN AUTH PROFILE STATE
+        // -------------------------------------------------------------
+        const feedbacks = [
+          { label: 'Controle de Regras', count: 1 },
+          { label: 'Gestão de Missões', count: 1 },
+          { label: 'Clube SHIFT', count: 1 }
+        ];
+
+        return res.json({
+          profile: {
+            name: name,
+            plate: 'Administrador Geral',
+            rating: 5.0,
+            totalTrips: 0,
+            score: 100,
+            feedbacks,
+            recentTrips: []
+          }
+        });
+      }
+
       // -------------------------------------------------------------
       // DRIVER AUTH PROFILE STATE
       // -------------------------------------------------------------
-      const selfPlate = plate || 'XYZ-1992';
+      const selfPlate = plate;
+      if (!selfPlate) {
+        return res.status(400).json({ error: 'Nenhum veículo registado para este motorista.' });
+      }
       let driver = await DriverModel.findByPlate(selfPlate);
 
       if (!driver) {

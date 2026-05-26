@@ -113,6 +113,8 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS campaign_tips (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
+      subtitle TEXT NOT NULL,
+      content TEXT NOT NULL,
       points INTEGER NOT NULL
     )
   `);
@@ -288,12 +290,27 @@ db.serialize(() => {
 
     // 7. Seed Tips
     const tipStmt = db.prepare(`
-      INSERT INTO campaign_tips (title, points)
-      VALUES (?, ?)
+      INSERT INTO campaign_tips (title, subtitle, content, points)
+      VALUES (?, ?, ?, ?)
     `);
-    tipStmt.run('Mito vs Fato: Cinto no banco de trás', 50);
-    tipStmt.run('Riscos da fadiga ao volante', 100);
-    tipStmt.run('Distância de reação em pistas molhadas', 80);
+    tipStmt.run(
+      'Mito vs Fato: Cinto no banco de trás', 
+      'Mito vs Fato', 
+      'Fato: O cinto no banco de trás é obrigatório e vital. Em caso de colisão a 50 km/h, um passageiro sem cinto no banco de trás é projetado para a frente com um impacto equivalente ao peso de um elefante de 3 toneladas, esmagando o condutor.', 
+      50
+    );
+    tipStmt.run(
+      'Riscos da fadiga ao volante', 
+      'Fisiologia da Fadiga', 
+      'Fato: Conduzir com sono ou fadiga severa equivale a conduzir sob o efeito do álcool. Após 19 horas sem dormir, os tempos de reação e reflexos equivalem a uma taxa de alcoolemia de 0,5 g/l. Faça pausas a cada 2 horas.', 
+      100
+    );
+    tipStmt.run(
+      'Distância de reação em pistas molhadas', 
+      'Física da Reação', 
+      'Fato: Em pistas molhadas, a distância de travagem do carro duplica em comparação ao asfalto seco devido à redução dramática do atrito dos pneus. Aumente a distância de segurança para pelo menos 4 segundos.', 
+      80
+    );
     tipStmt.finalize();
 
     // 8. Seed Rewards

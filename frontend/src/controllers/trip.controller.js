@@ -7,6 +7,28 @@ import ApiService from '../models/api.model';
 export function useTripController(soundEnabled, setNotification, refreshProfileCallback, isAuthenticated) {
   const [isDriving, setIsDriving] = useState(false);
   const [score, setScore] = useState(100);
+  const [dbTips, setDbTips] = useState([]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      ApiService.fetchTips().then(loadedTips => {
+        setDbTips(loadedTips);
+      }).catch(err => {
+        console.warn('Failed to load telemetry tips:', err);
+      });
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsDriving(false);
+      setShowPermissionModal(false);
+      setSpeed(0);
+      setTripSeconds(0);
+      setDistance(0.0);
+    }
+  }, [isAuthenticated]);
+
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [speed, setSpeed] = useState(0);
   const [brakingAlert, setBrakingAlert] = useState(false);
@@ -54,13 +76,12 @@ export function useTripController(soundEnabled, setNotification, refreshProfileC
   };
 
   const triggerSafeDrivingTip = () => {
-    const tips = [
-      "Mantenha sempre a distância de segurança do veículo da frente.",
-      "Reduza a velocidade sob chuva ou pouca visibilidade.",
-      "A pressa passa, a segurança fica. Conduza com atenção.",
-      "Maio Amarelo: A paz no trânsito começa em si."
-    ];
-    showNotification("Dica de Trânsito", tips[Math.floor(Math.random() * tips.length)], "info");
+    if (dbTips.length > 0) {
+      const randomTip = dbTips[Math.floor(Math.random() * dbTips.length)];
+      showNotification("Dica de Trânsito", randomTip.title, "info");
+    } else {
+      showNotification("Dica de Trânsito", "Maio Amarelo: A paz no trânsito começa em si.", "info");
+    }
   };
 
   // Fetch real weather immediately on mount using device location
@@ -280,13 +301,9 @@ export function useTripController(soundEnabled, setNotification, refreshProfileC
   // -------------------------------------------------------------
   const startGpsWatching = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          "Permissão de GPS Necessária",
-          "O SHIFT necessita de aceder ao GPS para realizar a telemetria em tempo real das suas viagens comunitárias.",
-          [{ text: "Compreendido" }]
-        );
+        setShowPermissionModal(true);
         setIsDriving(false);
         return;
       }
