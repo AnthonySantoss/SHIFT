@@ -1,6 +1,4 @@
-const DriverModel = require('../models/driver.model');
-const AuditModel = require('../models/audit.model');
-const UserModel = require('../models/user.model');
+const { Driver, Audit, User, DriverHistory } = require('../models');
 
 class DriverController {
   static async searchDriver(req, res) {
@@ -11,24 +9,21 @@ class DriverController {
       }
 
       const cleanPlate = plate.toUpperCase().trim();
-      const driver = await DriverModel.findByPlate(cleanPlate);
+      const driver = await Driver.findOne({ where: { plate: cleanPlate } });
 
       if (driver) {
-        const history = await DriverModel.getHistory(driver.id);
-        const audits = await DriverModel.getAudits(cleanPlate);
+        const history = await DriverHistory.findAll({ 
+          where: { driver_id: driver.id },
+          order: [['id', 'DESC']]
+        });
+        const audits = await Audit.findAll({ 
+          where: { driver_plate: cleanPlate },
+          order: [['id', 'DESC']]
+        });
         
         return res.json({
           found: true,
-          driver: {
-            id: driver.id,
-            plate: driver.plate,
-            name: driver.name,
-            score: driver.score,
-            trips: driver.trips,
-            status: driver.status,
-            badges: driver.badges,
-            rating: driver.rating
-          },
+          driver: driver.toJSON(),
           history,
           audits
         });
@@ -63,7 +58,10 @@ class DriverController {
         // -------------------------------------------------------------
         // PASSENGER AUTH PROFILE STATE
         // -------------------------------------------------------------
-        const audits = await AuditModel.getRecentByPassenger(id);
+        const audits = await Audit.findAll({ 
+          where: { passenger_id: id },
+          order: [['id', 'DESC']]
+        });
         const totalAudits = audits.length;
 
         const feedbacks = [
@@ -72,6 +70,15 @@ class DriverController {
           { label: 'Viagens Auditadas', count: totalAudits }
         ];
 
+        // Calculate passenger level
+        const calculatePassLevel = (auditsCount) => {
+          if (auditsCount >= 50) return { name: 'Auditor de Elite', next: 'Max' };
+          if (auditsCount >= 20) return { name: 'Inspetor Sênior', next: 50 };
+          if (auditsCount >= 10) return { name: 'Sentinela do Trânsito', next: 20 };
+          if (auditsCount >= 5) return { name: 'Colaborador Ativo', next: 10 };
+          return { name: 'Observador', next: 5 };
+        };
+
         return res.json({
           profile: {
             name: name,
@@ -79,6 +86,8 @@ class DriverController {
             rating: 5.0,
             totalTrips: totalAudits,
             score: 100,
+            level: calculatePassLevel(totalAudits),
+            badges: totalAudits >= 10 ? ['Olho de Águia'] : totalAudits >= 1 ? ['Primeira Auditoria'] : [],
             feedbacks,
             recentTrips: audits.map((a) => ({
               id: a.id,
@@ -123,16 +132,29 @@ class DriverController {
       if (!selfPlate) {
         return res.status(400).json({ error: 'Nenhum veículo registado para este motorista.' });
       }
-      let driver = await DriverModel.findByPlate(selfPlate);
+      let driver = await Driver.findOne({ where: { plate: selfPlate } });
 
       if (!driver) {
         // Automatically spawn missing driver public catalog defensively
-        await DriverModel.create(selfPlate, name, 100, 0, 'excellent', ['Novato'], 5.0);
-        driver = await DriverModel.findByPlate(selfPlate);
+        driver = await Driver.create({
+          plate: selfPlate,
+          name,
+          score: 100,
+          trips: 0,
+          status: 'excellent',
+          badges: ['Novato'],
+          rating: 5.0
+        });
       }
 
-      const history = await DriverModel.getHistory(driver.id);
-      const audits = await DriverModel.getAudits(selfPlate);
+      const history = await DriverHistory.findAll({ 
+        where: { driver_id: driver.id },
+        order: [['id', 'DESC']]
+      });
+      const audits = await Audit.findAll({ 
+        where: { driver_plate: selfPlate },
+        order: [['id', 'DESC']]
+      });
 
       // Extract passenger feedback highlights dynamically from public audits
       const feedbacks = [
@@ -152,7 +174,7 @@ class DriverController {
         }
       });
 
-      // Calculate dynamic average rating strictly from public SQLite audits
+      // Calculate dynamic average rating strictly from public audits
       const totalAuditsCount = audits.length;
       const sumStars = audits.reduce((acc, a) => acc + a.rating_stars, 0);
       const dynamicRating = totalAuditsCount > 0 ? parseFloat((sumStars / totalAuditsCount).toFixed(1)) : '--';
@@ -163,6 +185,18 @@ class DriverController {
         count: (driver.trips * 150) + (req.user.bonus_points || 0)
       });
 
+      // Calculate level based on trips
+      const calculateLevel = (trips) => {
+        if (trips >= 100) return { name: 'Lenda Urbana', next: 'Max' };
+        if (trips >= 50) return { name: 'Mestre da Segurança', next: 100 };
+        if (trips >= 25) return { name: 'Especialista', next: 50 };
+        if (trips >= 10) return { name: 'Avançado', next: 25 };
+        if (trips >= 3) return { name: 'Intermediário', next: 10 };
+        return { name: 'Iniciante', next: 3 };
+      };
+
+      const levelInfo = calculateLevel(driver.trips);
+
       return res.json({
         profile: {
           name: driver.name,
@@ -170,6 +204,8 @@ class DriverController {
           rating: dynamicRating,
           totalTrips: driver.trips,
           score: driver.score,
+          badges: driver.badges || [], // Include real badges
+          level: levelInfo,
           feedbacks,
           recentTrips: audits.map((a) => ({
             id: a.id,
@@ -196,11 +232,34 @@ class DriverController {
         return res.status(400).json({ error: 'Quantidade de pontos inválida.' });
       }
 
-      await UserModel.addBonusPoints(id, points);
+      const user = await User.findByPk(id);
+      if (user) {
+        user.bonus_points += points;
+        await user.save();
+      }
+      
       return res.json({ success: true, message: `${points} pontos SHIFT adicionados com sucesso!` });
     } catch (error) {
       console.error('Error adding bonus points:', error);
       return res.status(500).json({ error: 'Erro interno ao adicionar pontos.' });
+    }
+  }
+
+  static async getLeaderboard(req, res) {
+    try {
+      const topDrivers = await Driver.findAll({
+        attributes: ['id', 'name', 'plate', 'score', 'trips', 'rating', 'badges'],
+        order: [
+          ['score', 'DESC'],
+          ['trips', 'DESC']
+        ],
+        limit: 10
+      });
+
+      return res.json({ leaderboard: topDrivers });
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+      return res.status(500).json({ error: 'Erro ao carregar ranking de motoristas.' });
     }
   }
 }

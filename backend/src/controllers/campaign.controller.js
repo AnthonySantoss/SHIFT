@@ -1,10 +1,17 @@
-const CampaignModel = require('../models/campaign.model');
+const { Op } = require('sequelize');
+const { Challenge, Tip, Reward, Audit, Driver } = require('../models');
 
 class CampaignController {
   static async getChallenges(req, res) {
     try {
-      const { role } = req.user; // Injected by authMiddleware
-      const challenges = await CampaignModel.getChallenges(role);
+      const { role } = req.user;
+      const challenges = await Challenge.findAll({
+        where: {
+          role_restriction: {
+            [Op.in]: [role, 'all']
+          }
+        }
+      });
       return res.json(challenges);
     } catch (error) {
       console.error('Error fetching challenges:', error);
@@ -14,7 +21,7 @@ class CampaignController {
 
   static async getTips(req, res) {
     try {
-      const tips = await CampaignModel.getTips();
+      const tips = await Tip.findAll();
       return res.json(tips);
     } catch (error) {
       console.error('Error fetching tips:', error);
@@ -28,22 +35,21 @@ class CampaignController {
       let totalTripsOrAudits = 0;
 
       if (role === 'passenger') {
-        const AuditModel = require('../models/audit.model');
-        const audits = await AuditModel.getRecentByPassenger(id);
+        const audits = await Audit.findAll({ where: { passenger_id: id } });
         totalTripsOrAudits = audits.length;
       } else if (role === 'admin') {
         totalTripsOrAudits = 0;
       } else {
-        const DriverModel = require('../models/driver.model');
-        const driver = await DriverModel.findByPlate(plate || 'XYZ-1992');
+        const driver = await Driver.findOne({ where: { plate: plate || 'XYZ-1992' } });
         if (driver) {
           totalTripsOrAudits = driver.trips;
         }
       }
 
-      const rewards = await CampaignModel.getRewards();
+      const rewards = await Reward.findAll();
 
-      const updatedRewards = rewards.map(meta => {
+      const updatedRewards = rewards.map(reward => {
+        const meta = reward.toJSON();
         const t = meta.title.toLowerCase();
         let progress = 0;
 

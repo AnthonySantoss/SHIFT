@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as Location from 'expo-location';
 import ApiService from '../models/api.model';
 
 export function useAuditController(soundEnabled, setNotification, refreshProfileCallback) {
@@ -9,6 +10,7 @@ export function useAuditController(soundEnabled, setNotification, refreshProfile
   const [rideRating, setRideRating] = useState(5);
   const [roadContext, setRoadContext] = useState('urbana'); 
   const [weatherContext, setWeatherContext] = useState('limpo'); 
+  const [currentCoords, setCurrentCoords] = useState(null);
   
   // Real-time audit metrics
   const [score, setScore] = useState(100);
@@ -26,7 +28,7 @@ export function useAuditController(soundEnabled, setNotification, refreshProfile
 
   const handlePlateSearch = async () => {
     if (!searchPlate) {
-      showNotification("Atenção", "Preencha a matrícula do veículo.", "warning");
+      showNotification("Atenção", "Preencha a placa do veículo.", "warning");
       return;
     }
 
@@ -42,13 +44,12 @@ export function useAuditController(soundEnabled, setNotification, refreshProfile
           showNotification("Motorista Verificado", "Bom histórico de condução. Boa viagem!", "success");
         }
       } else {
-        showNotification("Motorista Novo", "Veículo ainda não registado. Seja o primeiro a avaliá-lo!", "info");
+        showNotification("Motorista Novo", "Veículo ainda não registrado. Seja o primeiro a avaliá-lo!", "info");
       }
     } catch (err) {
       console.error('Error searching plate:', err);
       showNotification("Erro na Pesquisa", "Não foi possível pesquisar no servidor. Usando dados locais offline.", "warning");
       
-      // Offline fallback
       setSearchedDriver({
         found: false,
         driver: {
@@ -68,13 +69,35 @@ export function useAuditController(soundEnabled, setNotification, refreshProfile
     }
   };
 
-  const handleStartAudit = () => {
+  const handleStartAudit = async () => {
     if (!searchPlate) {
-      showNotification("Atenção", "Por favor, introduza a matrícula do veículo para iniciar.", "warning");
+      showNotification("Atenção", "Por favor, introduza a placa do veículo para iniciar.", "warning");
       return;
     }
+
+    // Auto-detect location and weather for the audit
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (loc && loc.coords) {
+          setCurrentCoords(loc.coords);
+          const weatherResponse = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${loc.coords.latitude}&longitude=${loc.coords.longitude}&current=weather_code`
+          );
+          const weatherData = await weatherResponse.json();
+          if (weatherData && weatherData.current) {
+            const code = weatherData.current.weather_code;
+            if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) setWeatherContext('chuva');
+            else if (new Date().getHours() > 18 || new Date().getHours() < 6) setWeatherContext('noite');
+            else setWeatherContext('limpo');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Auto-context detection failed:', e);
+    }
     
-    // Clear previous session metrics
     setScore(100);
     setPositiveActions([]);
     setInfractions([]);
@@ -83,29 +106,27 @@ export function useAuditController(soundEnabled, setNotification, refreshProfile
     
     setIsMonitoringRide(true);
     setShowReview(false);
-    showNotification("Auditoria Iniciada", "Sensores ativados. Registe ações positivas ou infrações.", "success");
+    showNotification("Auditoria Iniciada", "Monitoramento ativado. Registre ações positivas ou infrações.", "success");
   };
 
   const handlePositiveReport = (action) => {
     if (!isMonitoringRide) return;
-    
     setPositiveActions(prev => {
       if (prev.includes(action)) return prev;
       return [...prev, action];
     });
     setScore(prev => Math.min(100, prev + 5));
-    showNotification("Ação Positiva", `${action} registado com sucesso.`, "success");
+    showNotification("Ação Positiva", `${action} registrado com sucesso.`, "success");
   };
 
   const handleInfractionReport = (infraction) => {
     if (!isMonitoringRide) return;
-
     setInfractions(prev => {
       if (prev.includes(infraction)) return prev;
       return [...prev, infraction];
     });
     setScore(prev => Math.max(30, prev - 15));
-    showNotification("Infração Registada", `Reporte de ${infraction} adicionado.`, "danger");
+    showNotification("Infração Registrada", `Reporte de ${infraction} adicionado.`, "danger");
   };
 
   const handleStopAudit = () => {
@@ -125,21 +146,19 @@ export function useAuditController(soundEnabled, setNotification, refreshProfile
         ratingStars: rideRating,
         positiveActions,
         infractions,
-        feedback: feedbackText || (score > 80 ? "Direção segura e defensiva." : "Condução com oportunidades de melhoria.")
+        feedback: feedbackText || (score > 80 ? "Direção segura e defensiva." : "Condução com oportunidades de melhoria."),
+        latitude: currentCoords?.latitude,
+        longitude: currentCoords?.longitude
       };
 
       await ApiService.submitAudit(auditData);
-      
       showNotification("Auditoria Enviada!", "Obrigado! Ganhou +100 Pts Maio Amarelo pela sua contribuição.", "success");
       
-      // Reset state
       setSearchPlate('');
       setSearchedDriver(null);
       setShowReview(false);
       
-      if (refreshProfileCallback) {
-        refreshProfileCallback();
-      }
+      if (refreshProfileCallback) refreshProfileCallback();
     } catch (err) {
       console.error('Error submitting audit:', err);
       showNotification("Erro ao Enviar", "Erro ao conectar com o servidor.", "danger");
@@ -149,30 +168,10 @@ export function useAuditController(soundEnabled, setNotification, refreshProfile
   };
 
   return {
-    searchPlate,
-    setSearchPlate,
-    searchedDriver,
-    setSearchedDriver,
-    isMonitoringRide,
-    showReview,
-    setShowReview,
-    rideRating,
-    setRideRating,
-    roadContext,
-    setRoadContext,
-    weatherContext,
-    setWeatherContext,
-    score,
-    positiveActions,
-    infractions,
-    feedbackText,
-    setFeedbackText,
-    isLoading,
-    handlePlateSearch,
-    handleStartAudit,
-    handlePositiveReport,
-    handleInfractionReport,
-    handleStopAudit,
-    submitAudit
+    searchPlate, setSearchPlate, searchedDriver, setSearchedDriver, isMonitoringRide,
+    showReview, setShowReview, rideRating, setRideRating, roadContext, setRoadContext,
+    weatherContext, setWeatherContext, score, positiveActions, infractions,
+    feedbackText, setFeedbackText, isLoading, handlePlateSearch, handleStartAudit,
+    handlePositiveReport, handleInfractionReport, handleStopAudit, submitAudit
   };
 }

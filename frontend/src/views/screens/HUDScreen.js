@@ -16,6 +16,9 @@ export default function HUDScreen({ isDriving, speed, score, distance }) {
         onPress={() => setHudMirrored(!hudMirrored)}
         style={styles.mirrorBtn}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={hudMirrored ? "Modo normal" : "Modo espelho para reflexo no para-brisa"}
+        accessibilityHint="Alterna a inversão da imagem para uso como Head-Up Display"
       >
         <Text style={styles.mirrorBtnText}>
           {hudMirrored ? 'Normal' : 'Espelho (Windshield)'}
@@ -23,15 +26,18 @@ export default function HUDScreen({ isDriving, speed, score, distance }) {
       </TouchableOpacity>
 
       {/* Main HUD Body */}
-      <View style={[styles.hudBody, mirrorStyle]}>
+      <View 
+        style={[styles.hudBody, mirrorStyle]}
+        accessibilityLabel={`Velocidade atual: ${isDriving ? speed : '0'} quilômetros por hora. Score: ${score} por cento. Distância: ${isDriving ? distance.toFixed(1) : '0.0'} quilômetros.`}
+      >
         {/* Large Speed Indicator */}
-        <Text style={styles.speedText}>
+        <Text style={styles.speedText} importantForAccessibility="no-hide-descendants">
           {isDriving ? speed : '0'}
         </Text>
-        <Text style={styles.unitText}>KM/H</Text>
+        <Text style={styles.unitText} importantForAccessibility="no-hide-descendants">KM/H</Text>
 
         {/* Sub-Metrics Row */}
-        <View style={styles.metricsRow}>
+        <View style={styles.metricsRow} importantForAccessibility="no-hide-descendants">
           <View style={styles.metricItem}>
             <Text style={styles.metricValue}>{score}%</Text>
             <Text style={styles.metricLabel}>SCORE</Text>

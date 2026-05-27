@@ -1,35 +1,51 @@
-const { queryGet, queryRun } = require('../config/db');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
 
-class UserModel {
-  static async findByEmail(email) {
-    const sql = `SELECT * FROM users WHERE LOWER(email) = LOWER(?)`;
-    return await queryGet(sql, [email.trim()]);
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    set(value) {
+      this.setDataValue('email', value.toLowerCase().trim());
+    }
+  },
+  password_hash: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  role: {
+    type: DataTypes.ENUM('driver', 'passenger', 'admin'),
+    allowNull: false,
+  },
+  plate: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    set(value) {
+      if (value) {
+        this.setDataValue('plate', value.toUpperCase().trim());
+      } else {
+        this.setDataValue('plate', null);
+      }
+    }
+  },
+  bonus_points: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
   }
+}, {
+  tableName: 'users',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+});
 
-  static async findById(id) {
-    const sql = `SELECT id, name, email, role, plate, bonus_points, created_at FROM users WHERE id = ?`;
-    return await queryGet(sql, [id]);
-  }
-
-  static async create({ name, email, passwordHash, role, plate }) {
-    const sql = `
-      INSERT INTO users (name, email, password_hash, role, plate)
-      VALUES (?, ?, ?, ?, ?)
-    `;
-    const result = await queryRun(sql, [
-      name.trim(),
-      email.toLowerCase().trim(),
-      passwordHash,
-      role,
-      plate ? plate.toUpperCase().trim() : null
-    ]);
-    return result.id;
-  }
-
-  static async addBonusPoints(id, points) {
-    const sql = `UPDATE users SET bonus_points = bonus_points + ? WHERE id = ?`;
-    return await queryRun(sql, [points, id]);
-  }
-}
-
-module.exports = UserModel;
+module.exports = User;

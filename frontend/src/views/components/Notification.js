@@ -1,28 +1,30 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { AlertTriangle, CheckCircle, Sparkles, HeartPulse } from 'lucide-react-native';
+import { View, Text, StyleSheet, Animated, Platform } from 'react-native';
+import { AlertTriangle, CheckCircle, Sparkles, Info } from 'lucide-react-native';
+import getTheme from '../../theme';
 
-export default function Notification({ notification, setNotification }) {
-  const slideAnim = React.useRef(new Animated.Value(-100)).current;
+export default function Notification({ notification, setNotification, isDarkMode }) {
+  const theme = getTheme(isDarkMode);
+  const slideAnim = React.useRef(new Animated.Value(-150)).current;
 
   useEffect(() => {
     if (notification) {
-      // Slide Down animation
+      // Slide Down animation with Spring for premium feel
       Animated.spring(slideAnim, {
-        toValue: 12,
+        toValue: Platform.OS === 'ios' ? 50 : 20,
         useNativeDriver: true,
-        tension: 50,
-        friction: 8,
+        tension: 40,
+        friction: 7,
       }).start();
 
-      // Dismiss automatically after 4 seconds
+      // Dismiss automatically after 4.5 seconds
       const timer = setTimeout(() => {
         Animated.timing(slideAnim, {
           toValue: -150,
           duration: 300,
           useNativeDriver: true,
         }).start(() => setNotification(null));
-      }, 4000);
+      }, 4500);
 
       return () => clearTimeout(timer);
     }
@@ -30,51 +32,56 @@ export default function Notification({ notification, setNotification }) {
 
   if (!notification) return null;
 
-  const isAlert = notification.type === 'danger' || notification.type === 'warning';
-  const isSuccess = notification.type === 'success';
+  const type = notification.type || 'info';
 
-  // Semantic styles for various notification categories
-  const containerStyle = [
-    styles.container,
-    isAlert
-      ? styles.dangerContainer
-      : isSuccess
-      ? styles.successContainer
-      : styles.infoContainer,
-  ];
+  const getNotificationStyle = () => {
+    switch (type) {
+      case 'danger':
+        return { 
+          bg: theme.colors.danger, 
+          text: '#FFFFFF',
+          icon: <AlertTriangle size={20} color="#FFFFFF" />
+        };
+      case 'warning':
+        return { 
+          bg: theme.colors.warning, 
+          text: '#FFFFFF',
+          icon: <AlertTriangle size={20} color="#FFFFFF" />
+        };
+      case 'success':
+        return { 
+          bg: theme.colors.success, 
+          text: '#FFFFFF',
+          icon: <CheckCircle size={20} color="#FFFFFF" />
+        };
+      default:
+        return { 
+          bg: theme.colors.secondary, 
+          text: theme.colors.onSecondary,
+          icon: <Info size={20} color={theme.colors.onSecondary} />
+        };
+    }
+  };
 
-  const titleStyle = [
-    styles.title,
-    isAlert
-      ? styles.dangerTitle
-      : isSuccess
-      ? styles.successTitle
-      : styles.infoTitle,
-  ];
-
-  const descStyle = [
-    styles.description,
-    isAlert
-      ? styles.dangerDesc
-      : isSuccess
-      ? styles.successDesc
-      : styles.infoDesc,
-  ];
+  const style = getNotificationStyle();
 
   return (
-    <Animated.View style={[containerStyle, { transform: [{ translateY: slideAnim }] }]}>
-      <View style={styles.iconContainer}>
-        {isAlert ? (
-          <AlertTriangle size={20} color={notification.type === 'danger' ? '#EF4444' : '#F59E0B'} />
-        ) : isSuccess ? (
-          <CheckCircle size={20} color="#10B981" />
-        ) : (
-          <Sparkles size={20} color="#6366F1" />
-        )}
-      </View>
-      <View style={styles.textContainer}>
-        <Text style={titleStyle}>{notification.title}</Text>
-        <Text style={descStyle}>{notification.message}</Text>
+    <Animated.View style={[
+      styles.container,
+      {
+        backgroundColor: style.bg,
+        transform: [{ translateY: slideAnim }]
+      },
+      theme.shadows.hard
+    ]}>
+      <View style={styles.content}>
+        <View style={styles.iconWrapper}>
+          {style.icon}
+        </View>
+        <View style={styles.textWrapper}>
+          <Text style={[styles.title, { color: style.text }]}>{notification.title}</Text>
+          <Text style={[styles.message, { color: style.text, opacity: 0.9 }]}>{notification.message}</Text>
+        </View>
       </View>
     </Animated.View>
   );
@@ -83,75 +90,39 @@ export default function Notification({ notification, setNotification }) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 60, // Sits beautifully right below the header
+    top: 0,
     left: 16,
     right: 16,
-    zIndex: 9999,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    zIndex: 10000,
+    borderRadius: 16,
+    padding: 14,
+    // Elevation for Android / Shadow for iOS via theme.shadows.hard
+  },
+  content: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 6,
   },
-  textContainer: {
-    flex: 1,
-  },
-  iconContainer: {
-    marginTop: 2,
+  iconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  textWrapper: {
+    flex: 1,
+  },
   title: {
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '950',
     letterSpacing: 0.2,
   },
-  description: {
-    fontSize: 11,
-    fontWeight: '500',
-    lineHeight: 14,
-    marginTop: 2,
-  },
-
-  // Danger & Warning styling
-  dangerContainer: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FEE2E2',
-  },
-  dangerTitle: {
-    color: '#991B1B',
-  },
-  dangerDesc: {
-    color: '#7F1D1D',
-  },
-
-  // Success styling
-  successContainer: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#D1FAE5',
-  },
-  successTitle: {
-    color: '#065F46',
-  },
-  successDesc: {
-    color: '#047857',
-  },
-
-  // Info / Tips styling
-  infoContainer: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-  },
-  infoTitle: {
-    color: '#1E293B',
-  },
-  infoDesc: {
-    color: '#475569',
+  message: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    lineHeight: 15,
+    marginTop: 1,
   },
 });

@@ -1,27 +1,55 @@
-const { queryRun, queryAll } = require('../config/db');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
 
-class TripModel {
-  static async create({ driverId, driverPlate, score, speedAvg, fatigueMax, distance, durationSeconds }) {
-    const sql = `
-      INSERT INTO trips (driver_id, driver_plate, score, speed_avg, fatigue_max, distance, duration_seconds)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
-    const result = await queryRun(sql, [
-      driverId || null,
-      driverPlate.toUpperCase().trim(),
-      score,
-      speedAvg,
-      fatigueMax,
-      distance,
-      durationSeconds
-    ]);
-    return result.id;
+const Trip = sequelize.define('Trip', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  driver_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  driver_plate: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    set(value) {
+      this.setDataValue('driver_plate', value.toUpperCase().trim());
+    }
+  },
+  score: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  speed_avg: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+  },
+  fatigue_max: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+  },
+  distance: {
+    type: DataTypes.FLOAT,
+    allowNull: false,
+  },
+  duration_seconds: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  latitude: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+  },
+  longitude: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
   }
+}, {
+  tableName: 'trips',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+});
 
-  static async getRecentByPlate(plate) {
-    const sql = `SELECT * FROM trips WHERE UPPER(driver_plate) = UPPER(?) ORDER BY created_at DESC LIMIT 10`;
-    return await queryAll(sql, [plate.trim()]);
-  }
-}
-
-module.exports = TripModel;
+module.exports = Trip;

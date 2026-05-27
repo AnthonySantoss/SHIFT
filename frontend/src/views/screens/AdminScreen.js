@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { Settings, Target, Award, Plus, Trash2, Shield, Save, BookOpen } from 'lucide-react-native';
 import ApiService from '../../models/api.model';
 
@@ -37,6 +37,38 @@ export default function AdminScreen({ isDarkMode }) {
   const [tSubtitle, setTSubtitle] = useState('');
   const [tContent, setTContent] = useState('');
   const [tPoints, setTPoints] = useState('');
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [loadedConfigs, loadedChallenges, loadedRewards, loadedTips] = await Promise.all([
+        ApiService.fetchConfigs(),
+        ApiService.fetchChallenges(),
+        ApiService.fetchRewards(),
+        ApiService.fetchTips()
+      ]);
+
+      setConfigs(loadedConfigs);
+
+      const speedCfg = loadedConfigs.find(c => c.key === 'MAX_SPEED_LIMIT');
+      const brakeCfg = loadedConfigs.find(c => c.key === 'BRAKING_DECELE_THRESHOLD');
+      const gyroCfg = loadedConfigs.find(c => c.key === 'GYRO_DISTRACTION_LIMIT');
+
+      if (speedCfg) setMaxSpeed(speedCfg.value);
+      if (brakeCfg) setBrakingThresh(brakeCfg.value);
+      if (gyroCfg) setGyroThresh(gyroCfg.value);
+
+      setChallenges(loadedChallenges);
+      setRewards(loadedRewards);
+      setTips(loadedTips);
+    } catch (err) {
+      console.error('Error refreshing admin data:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   // Theme colors
   const colors = {
@@ -216,7 +248,12 @@ export default function AdminScreen({ isDarkMode }) {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.bg }]}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#F59E0B" />
+      }>
       {/* Premium Header */}
       <View style={styles.adminHeaderCard}>
         <Shield size={24} color="#F59E0B" />

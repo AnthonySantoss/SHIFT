@@ -1,43 +1,231 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { Award, User, Car, Star, ThumbsUp, MessageSquare, AlertTriangle, LogOut } from 'lucide-react-native';
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+} from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import {
+  Award,
+  User,
+  Car,
+  Star,
+  ThumbsUp,
+  MessageSquare,
+  AlertTriangle,
+  LogOut,
+  Shield,
+  ChevronRight,
+} from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import getTheme from "../../theme";
 
-export default function HistoricoScreen({ isDarkMode, profileData, handleLogout }) {
-  // Colors
-  const colors = {
-    bg: isDarkMode ? '#0F1015' : '#F1F5F9',
-    cardBg: isDarkMode ? '#171923' : '#FFFFFF',
-    border: isDarkMode ? '#222530' : '#E2E8F0',
-    title: isDarkMode ? '#FFFFFF' : '#0F172A',
-    text: isDarkMode ? '#94A3B8' : '#475569',
-  };
+export default function HistoricoScreen({
+  isDarkMode,
+  profileData,
+  refreshProfile,
+  handleLogout,
+}) {
+  const theme = getTheme(isDarkMode);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(!profileData);
+  const [loadError, setLoadError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  if (!profileData) {
+  // Reanimated Shared Values
+  const levelProgressSV = useSharedValue(0);
+
+  useEffect(() => {
+    if (profileData && profileData.level) {
+      const { totalTrips, level } = profileData;
+      const progress =
+        level.next === "Max" ? 100 : (totalTrips / level.next) * 100;
+      levelProgressSV.value = withTiming(Math.min(100, progress), {
+        duration: 1500,
+      });
+    }
+  }, [profileData]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProfile = async () => {
+      if (profileData) {
+        setLoadError(null);
+        setIsLoadingProfile(false);
+        return;
+      }
+
+      if (!refreshProfile) {
+        setIsLoadingProfile(false);
+        setLoadError("Não foi possível carregar o perfil.");
+        return;
+      }
+
+      setIsLoadingProfile(true);
+      setLoadError(null);
+
+      try {
+        await refreshProfile();
+      } catch (error) {
+        if (active) setLoadError("Não foi possível carregar o perfil.");
+      } finally {
+        if (active) setIsLoadingProfile(false);
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [profileData]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (refreshProfile) {
+        await refreshProfile();
+      }
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshProfile]);
+
+  const animatedLevelStyle = useAnimatedStyle(() => {
+    return {
+      width: `${levelProgressSV.value}%`,
+    };
+  });
+
+  if (isLoadingProfile) {
     return (
-      <View style={[styles.loadingBox, { backgroundColor: colors.bg }]}>
-        <Text style={[styles.loadingText, { color: colors.text }]}>A carregar histórico...</Text>
+      <View style={[styles.loadingBox, { backgroundColor: theme.colors.bg }]}>
+        <Text style={[styles.loadingText, { color: theme.colors.text }]}>
+          A carregar histórico...
+        </Text>
       </View>
     );
   }
 
-  const { name, plate, rating, totalTrips, score, feedbacks, recentTrips } = profileData;
+  if (!profileData) {
+    return (
+      <View style={[styles.loadingBox, { backgroundColor: theme.colors.bg }]}>
+        <Text
+          style={[
+            styles.loadingText,
+            { color: theme.colors.text, textAlign: "center" },
+          ]}
+        >
+          {loadError || "Sem dados de perfil disponíveis."}
+        </Text>
+        {refreshProfile && (
+          <TouchableOpacity
+            onPress={async () => {
+              setLoadError(null);
+              setIsLoadingProfile(true);
+              try {
+                await refreshProfile();
+              } catch (error) {
+                setLoadError("Não foi possível carregar o perfil.");
+              } finally {
+                setIsLoadingProfile(false);
+              }
+            }}
+            style={[styles.retryBtn, { borderColor: theme.colors.primary }]}
+            activeOpacity={0.85}
+          >
+            <Text
+              style={[styles.retryBtnText, { color: theme.colors.primary }]}
+            >
+              Tentar novamente
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
+
+  const {
+    name,
+    plate,
+    rating,
+    totalTrips,
+    score,
+    feedbacks,
+    recentTrips,
+    level,
+    badges,
+  } = profileData;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.colors.bg }]}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+      }>
       {/* Premium Profile Header Card */}
-      <View style={styles.profileCard}>
+      <View
+        style={[
+          styles.profileCard,
+          { backgroundColor: theme.colors.secondary },
+          theme.shadows.medium,
+        ]}
+      >
         <View style={styles.profileHeader}>
           <View style={styles.avatarWrapper}>
-            <User size={30} color="#FFFFFF" />
+            <User size={30} color={theme.colors.white} />
+            {level && (
+              <View
+                style={[
+                  styles.levelBadge,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+              >
+                <Shield size={10} color={theme.colors.black} />
+              </View>
+            )}
           </View>
           <View style={styles.profileMeta}>
             <Text style={styles.profileName}>{name}</Text>
             <View style={styles.plateBadge}>
-              <Car size={12} color="#FFFFFF" />
+              <Car size={12} color={theme.colors.white} />
               <Text style={styles.plateText}>{plate}</Text>
             </View>
           </View>
         </View>
+
+        {/* New: Level Progress Bar */}
+        {level && (
+          <View style={styles.levelProgressContainer}>
+            <View style={styles.levelInfoRow}>
+              <Text style={styles.levelName}>{level.name}</Text>
+              <Text style={styles.levelNext}>
+                Próximo nível: {level.next} viagens
+              </Text>
+            </View>
+            <View style={styles.levelBarBg}>
+              <Animated.View
+                style={[
+                  styles.levelBarFill,
+                  animatedLevelStyle,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+              />
+            </View>
+          </View>
+        )}
 
         {/* Global Stars and Audits Grid */}
         <View style={styles.divider} />
@@ -45,14 +233,26 @@ export default function HistoricoScreen({ isDarkMode, profileData, handleLogout 
           <View style={styles.statCol}>
             <Text style={styles.statLabel}>AVALIAÇÃO GERAL</Text>
             <View style={styles.ratingStarsRow}>
-              <Text style={styles.ratingNumber}>{rating}</Text>
+              <Text
+                style={[styles.ratingNumber, { color: theme.colors.primary }]}
+              >
+                {rating}
+              </Text>
               <View style={styles.starsWrapper}>
                 {[1, 2, 3, 4, 5].map((s) => (
                   <Star
                     key={s}
                     size={11}
-                    color={s <= Math.floor(rating) ? '#F59E0B' : '#475569'}
-                    fill={s <= Math.floor(rating) ? '#F59E0B' : 'transparent'}
+                    color={
+                      s <= Math.floor(rating)
+                        ? theme.colors.primary
+                        : "rgba(255,255,255,0.3)"
+                    }
+                    fill={
+                      s <= Math.floor(rating)
+                        ? theme.colors.primary
+                        : "transparent"
+                    }
                   />
                 ))}
               </View>
@@ -66,72 +266,203 @@ export default function HistoricoScreen({ isDarkMode, profileData, handleLogout 
         </View>
       </View>
 
-      {/* Badges highlights section */}
-      <View style={[styles.badgesCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+      {/* Real Badges Section */}
+      {badges && badges.length > 0 && (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.card,
+              borderColor: theme.colors.border,
+            },
+            theme.shadows.soft,
+          ]}
+        >
+          <View style={styles.cardHeader}>
+            <Award size={16} color={theme.colors.primary} />
+            <Text style={[styles.cardTitle, { color: theme.colors.title }]}>
+              Suas Conquistas
+            </Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.badgesHorizontal}
+          >
+            {badges.map((b, idx) => (
+              <TouchableOpacity
+                key={idx}
+                onPress={() =>
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                }
+                style={[
+                  styles.badgeMedal,
+                  { backgroundColor: `${theme.colors.primary}1A` },
+                ]}
+              >
+                <Award size={20} color={theme.colors.primary} />
+                <Text
+                  style={[
+                    styles.badgeMedalText,
+                    { color: theme.colors.primary },
+                  ]}
+                >
+                  {b}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Passenger Feedbacks */}
+      <View
+        style={[
+          styles.badgesCard,
+          {
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+          },
+          theme.shadows.soft,
+        ]}
+      >
         <View style={styles.badgesHeader}>
-          <ThumbsUp size={16} color="#10B981" />
-          <Text style={[styles.badgesTitle, { color: colors.title }]}>Destaques dos Passageiros</Text>
+          <ThumbsUp size={16} color={theme.colors.success} />
+          <Text style={[styles.badgesTitle, { color: theme.colors.title }]}>
+            Destaques da Comunidade
+          </Text>
         </View>
         <View style={styles.badgesWrapper}>
           {feedbacks.map((item, idx) => (
-            <View key={idx} style={[styles.badgeItem, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-              <Text style={[styles.badgeCount, { color: colors.title }]}>{item.count}</Text>
-              <Text style={[styles.badgeLabel, { color: colors.text }]}>{item.label}</Text>
+            <View
+              key={idx}
+              style={[
+                styles.badgeItem,
+                {
+                  backgroundColor: theme.colors.bg,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.badgeCount, { color: theme.colors.title }]}>
+                {item.count}
+              </Text>
+              <Text style={[styles.badgeLabel, { color: theme.colors.text }]}>
+                {item.label}
+              </Text>
             </View>
           ))}
         </View>
       </View>
 
       {/* Feed list of audits */}
-      <Text style={[styles.sectionTitle, { color: colors.title }]}>
-        {plate === 'Passageiro Cidadão' ? 'ÚLTIMAS AUDITORIAS SUBMETIDAS' : 'ÚLTIMAS AUDITORIAS RECEBIDAS'}
+      <Text style={[styles.sectionTitle, { color: theme.colors.title }]}>
+        {plate === "Passageiro Cidadão"
+          ? "ÚLTIMAS AUDITORIAS SUBMETIDAS"
+          : "ÚLTIMAS AUDITORIAS RECEBIDAS"}
       </Text>
-      
+
       <View style={styles.tripsFeed}>
         {recentTrips.length === 0 ? (
-          <Text style={[styles.emptyText, { color: colors.text }]}>Ainda não possui registos de auditoria de segurança.</Text>
+          <Text style={[styles.emptyText, { color: theme.colors.text }]}>
+            Ainda não possui registos de auditoria.
+          </Text>
         ) : (
           recentTrips.map((trip) => (
-            <View key={trip.id} style={[styles.tripCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <View
+              key={trip.id}
+              style={[
+                styles.tripCard,
+                {
+                  backgroundColor: theme.colors.card,
+                  borderColor: theme.colors.border,
+                },
+                theme.shadows.soft,
+              ]}
+            >
               <View style={styles.tripCardHeader}>
                 <View>
-                  <Text style={[styles.tripDate, { color: colors.title }]}>{trip.date}</Text>
-                  
-                  {/* Stars list */}
+                  <Text
+                    style={[styles.tripDate, { color: theme.colors.title }]}
+                  >
+                    {trip.date}
+                  </Text>
                   <View style={styles.tripStarsWrapper}>
                     {[1, 2, 3, 4, 5].map((s) => (
                       <Star
                         key={s}
                         size={10}
-                        color={s <= trip.stars ? '#F59E0B' : '#E2E8F0'}
-                        fill={s <= trip.stars ? '#F59E0B' : 'transparent'}
+                        color={
+                          s <= trip.stars
+                            ? theme.colors.primary
+                            : theme.colors.border
+                        }
+                        fill={
+                          s <= trip.stars ? theme.colors.primary : "transparent"
+                        }
                       />
                     ))}
-                    <View style={styles.tripScoreBadge}>
-                      <Text style={styles.tripScoreText}>Score: {trip.score}%</Text>
+                    <View
+                      style={[
+                        styles.tripScoreBadge,
+                        { backgroundColor: `${theme.colors.success}1A` },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tripScoreText,
+                          { color: theme.colors.success },
+                        ]}
+                      >
+                        Score: {trip.score}%
+                      </Text>
                     </View>
                   </View>
                 </View>
 
-                {/* Infraction indicator in feed */}
                 {trip.issue && (
-                  <View style={styles.issueBadge}>
-                    <AlertTriangle size={10} color="#EF4444" />
-                    <Text style={styles.issueText}>{trip.issue}</Text>
+                  <View
+                    style={[
+                      styles.issueBadge,
+                      { backgroundColor: `${theme.colors.danger}1A` },
+                    ]}
+                  >
+                    <AlertTriangle size={10} color={theme.colors.danger} />
+                    <Text
+                      style={[styles.issueText, { color: theme.colors.danger }]}
+                    >
+                      {trip.issue}
+                    </Text>
                   </View>
                 )}
               </View>
 
-              {/* Driving context */}
               <View style={styles.contextRow}>
-                <Text style={[styles.contextText, { color: colors.text }]}>Contexto: {trip.context}</Text>
+                <Text
+                  style={[styles.contextText, { color: theme.colors.text }]}
+                >
+                  Contexto: {trip.context}
+                </Text>
               </View>
 
-              {/* Text feedback commentary */}
               {trip.feedback ? (
-                <View style={[styles.feedbackBox, { backgroundColor: colors.bg }]}>
-                  <MessageSquare size={12} color="#818CF8" style={styles.feedbackIcon} />
-                  <Text style={[styles.feedbackTextBody, { color: colors.title }]}>
+                <View
+                  style={[
+                    styles.feedbackBox,
+                    { backgroundColor: theme.colors.bg },
+                  ]}
+                >
+                  <MessageSquare
+                    size={12}
+                    color={theme.colors.secondary}
+                    style={styles.feedbackIcon}
+                  />
+                  <Text
+                    style={[
+                      styles.feedbackTextBody,
+                      { color: theme.colors.title },
+                    ]}
+                  >
                     "{trip.feedback}"
                   </Text>
                 </View>
@@ -144,12 +475,24 @@ export default function HistoricoScreen({ isDarkMode, profileData, handleLogout 
       {/* Logout button */}
       {handleLogout && (
         <TouchableOpacity
-          onPress={handleLogout}
-          style={styles.logoutBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+            Alert.alert(
+              "Encerrar Sessão",
+              "Tem a certeza que deseja sair do SHIFT?",
+              [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Sair", style: "destructive", onPress: handleLogout },
+              ],
+            );
+          }}
+          style={[styles.logoutBtn, { borderColor: theme.colors.danger }]}
           activeOpacity={0.8}
         >
-          <LogOut size={16} color="#EF4444" />
-          <Text style={styles.logoutBtnText}>Encerrar Sessão</Text>
+          <LogOut size={16} color={theme.colors.danger} />
+          <Text style={[styles.logoutBtnText, { color: theme.colors.danger }]}>
+            Encerrar Sessão
+          </Text>
         </TouchableOpacity>
       )}
     </ScrollView>
@@ -167,70 +510,117 @@ const styles = StyleSheet.create({
   },
   loadingBox: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 40,
   },
   loadingText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
+  },
+  retryBtn: {
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  retryBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
   },
   profileCard: {
-    backgroundColor: '#0F172A',
     borderRadius: 24,
     padding: 18,
     gap: 14,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
   },
   profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 14,
   },
   avatarWrapper: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "rgba(255, 255, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  levelBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#0F172A",
   },
   profileMeta: {
-    justifyContent: 'center',
+    justifyContent: "center",
     gap: 4,
   },
   profileName: {
     fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
+    fontWeight: "900",
+    color: "#FFFFFF",
   },
   plateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   plateText: {
     fontSize: 9,
-    fontWeight: '900',
-    color: '#FFFFFF',
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+  levelProgressContainer: {
+    marginTop: 4,
+  },
+  levelInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  levelName: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    textTransform: "uppercase",
+  },
+  levelNext: {
+    fontSize: 8.5,
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.5)",
+  },
+  levelBarBg: {
+    height: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 99,
+    overflow: "hidden",
+  },
+  levelBarFill: {
+    height: "100%",
+    borderRadius: 99,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
   statsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   statCol: {
     flex: 1,
@@ -238,31 +628,63 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 8,
-    fontWeight: '900',
-    color: '#94A3B8',
+    fontWeight: "900",
+    color: "rgba(255, 255, 255, 0.5)",
     letterSpacing: 0.5,
   },
   ratingStarsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: 6,
   },
   ratingNumber: {
     fontSize: 26,
-    fontWeight: '900',
-    color: '#F59E0B',
+    fontWeight: "900",
     lineHeight: 26,
   },
   starsWrapper: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 2.5,
     marginBottom: 3,
   },
   auditsNumber: {
     fontSize: 26,
-    fontWeight: '950',
-    color: '#FFFFFF',
+    fontWeight: "950",
+    color: "#FFFFFF",
     lineHeight: 26,
+  },
+  card: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  badgesHorizontal: {
+    flexDirection: "row",
+    marginTop: 4,
+  },
+  badgeMedal: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginRight: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  badgeMedalText: {
+    fontSize: 9,
+    fontWeight: "900",
+    textAlign: "center",
   },
   badgesCard: {
     borderRadius: 20,
@@ -271,16 +693,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   badgesHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   badgesTitle: {
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: "900",
   },
   badgesWrapper: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   badgeItem: {
@@ -288,22 +710,22 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     padding: 10,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 2,
   },
   badgeCount: {
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: "900",
   },
   badgeLabel: {
     fontSize: 7.5,
-    fontWeight: '900',
-    textAlign: 'center',
+    fontWeight: "900",
+    textAlign: "center",
     letterSpacing: 0.2,
   },
   sectionTitle: {
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: "900",
     letterSpacing: 1.5,
     marginTop: 8,
     paddingLeft: 4,
@@ -318,22 +740,21 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tripCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   tripDate: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   tripStarsWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
     marginTop: 4,
   },
   tripScoreBadge: {
-    backgroundColor: 'rgba(148, 163, 184, 0.1)',
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 4,
@@ -341,13 +762,11 @@ const styles = StyleSheet.create({
   },
   tripScoreText: {
     fontSize: 8,
-    fontWeight: '800',
-    color: '#64748B',
+    fontWeight: "900",
   },
   issueBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -355,22 +774,21 @@ const styles = StyleSheet.create({
   },
   issueText: {
     fontSize: 8,
-    fontWeight: '900',
-    color: '#EF4444',
+    fontWeight: "900",
   },
   contextRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   contextText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   feedbackBox: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderRadius: 12,
     padding: 10,
     gap: 8,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
     marginTop: 4,
   },
   feedbackIcon: {
@@ -379,31 +797,29 @@ const styles = StyleSheet.create({
   feedbackTextBody: {
     flex: 1,
     fontSize: 10.5,
-    fontWeight: '600',
-    fontStyle: 'italic',
+    fontWeight: "600",
+    fontStyle: "italic",
     lineHeight: 14,
   },
   emptyText: {
     fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
     paddingVertical: 20,
   },
   logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     height: 48,
     borderWidth: 1.5,
-    borderColor: '#EF4444',
     borderRadius: 14,
     gap: 8,
     marginTop: 18,
     marginBottom: 10,
   },
   logoutBtnText: {
-    color: '#EF4444',
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: "900",
   },
 });

@@ -1,22 +1,22 @@
-const { queryAll, queryRun } = require('../config/db');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
 
-class ConfigModel {
-  static async getAll() {
-    const sql = `SELECT * FROM app_config ORDER BY key ASC`;
-    return await queryAll(sql);
+const AppConfig = sequelize.define('AppConfig', {
+  key: {
+    type: DataTypes.STRING,
+    primaryKey: true,
+  },
+  value: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
   }
+}, {
+  tableName: 'app_config',
+  timestamps: false, // Original table didn't have timestamps for config
+});
 
-  static async getByKey(key) {
-    const sql = `SELECT * FROM app_config WHERE key = ?`;
-    const results = await queryAll(sql, [key]);
-    return results[0] || null;
-  }
-
-  static async update(key, value) {
-    const sql = `UPDATE app_config SET value = ? WHERE key = ?`;
-    await queryRun(sql, [String(value), key]);
-    return { key, value };
-  }
-}
-
-module.exports = ConfigModel;
+module.exports = AppConfig;

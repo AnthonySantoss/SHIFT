@@ -1,10 +1,9 @@
-const ConfigModel = require('../models/config.model');
-const CampaignModel = require('../models/campaign.model');
+const { AppConfig, Challenge, Tip, Reward } = require('../models');
 
 class AdminController {
   static async getConfigs(req, res) {
     try {
-      const configs = await ConfigModel.getAll();
+      const configs = await AppConfig.findAll();
       return res.json(configs);
     } catch (error) {
       console.error('Error fetching admin configs:', error);
@@ -18,8 +17,16 @@ class AdminController {
       if (!key || value === undefined) {
         return res.status(400).json({ error: 'Parâmetros key e value obrigatórios.' });
       }
-      const updated = await ConfigModel.update(key, value);
-      return res.json(updated);
+      
+      let config = await AppConfig.findOne({ where: { key } });
+      if (config) {
+        config.value = value;
+        await config.save();
+      } else {
+        config = await AppConfig.create({ key, value });
+      }
+      
+      return res.json(config);
     } catch (error) {
       console.error('Error updating admin config:', error);
       return res.status(500).json({ error: 'Erro ao guardar configuração.' });
@@ -32,8 +39,13 @@ class AdminController {
       if (!title || !description || !points || !role_restriction) {
         return res.status(400).json({ error: 'Campos incompletos para criar missão.' });
       }
-      const result = await CampaignModel.createChallenge(title, description, parseInt(points), role_restriction);
-      return res.json({ id: result.id, title, description, points, role_restriction });
+      const challenge = await Challenge.create({
+        title,
+        description,
+        points: parseInt(points),
+        role_restriction
+      });
+      return res.json(challenge);
     } catch (error) {
       console.error('Error creating challenge:', error);
       return res.status(500).json({ error: 'Erro ao registar missão.' });
@@ -43,7 +55,7 @@ class AdminController {
   static async deleteChallenge(req, res) {
     try {
       const { id } = req.params;
-      await CampaignModel.deleteChallenge(id);
+      await Challenge.destroy({ where: { id } });
       return res.json({ success: true, message: 'Missão removida com sucesso.' });
     } catch (error) {
       console.error('Error deleting challenge:', error);
@@ -57,8 +69,13 @@ class AdminController {
       if (!title || !description || progress === undefined || !color) {
         return res.status(400).json({ error: 'Campos incompletos para criar vantagem.' });
       }
-      const result = await CampaignModel.createReward(title, description, parseInt(progress), color);
-      return res.json({ id: result.id, title, description, progress, color });
+      const reward = await Reward.create({
+        title,
+        description,
+        progress: parseInt(progress),
+        color
+      });
+      return res.json(reward);
     } catch (error) {
       console.error('Error creating reward:', error);
       return res.status(500).json({ error: 'Erro ao registar vantagem.' });
@@ -68,7 +85,7 @@ class AdminController {
   static async deleteReward(req, res) {
     try {
       const { id } = req.params;
-      await CampaignModel.deleteReward(id);
+      await Reward.destroy({ where: { id } });
       return res.json({ success: true, message: 'Vantagem removida com sucesso.' });
     } catch (error) {
       console.error('Error deleting reward:', error);
@@ -85,8 +102,13 @@ class AdminController {
       const finalSubtitle = subtitle || 'Condução Defensiva';
       const finalContent = content || 'Mantenha foco na pista e atenção aos peões e outros motoristas.';
       
-      const result = await CampaignModel.createTip(title, finalSubtitle, finalContent, parseInt(points));
-      return res.json({ id: result.id, title, subtitle: finalSubtitle, content: finalContent, points });
+      const tip = await Tip.create({
+        title,
+        subtitle: finalSubtitle,
+        content: finalContent,
+        points: parseInt(points)
+      });
+      return res.json(tip);
     } catch (error) {
       console.error('Error creating tip:', error);
       return res.status(500).json({ error: 'Erro ao registar dica rápida.' });
@@ -96,7 +118,7 @@ class AdminController {
   static async deleteTip(req, res) {
     try {
       const { id } = req.params;
-      await CampaignModel.deleteTip(id);
+      await Tip.destroy({ where: { id } });
       return res.json({ success: true, message: 'Dica rápida removida com sucesso.' });
     } catch (error) {
       console.error('Error deleting tip:', error);

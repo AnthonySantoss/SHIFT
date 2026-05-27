@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import Animated, { useSharedValue, useAnimatedProps, withTiming, interpolateColor } from 'react-native-reanimated';
 import { CloudRain, Sun, Cloud, CloudFog, Snowflake, Play, Square, AlertTriangle, Coffee, Smartphone } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import getTheme from '../../theme';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function DashboardScreen({ isDarkMode, controller }) {
+  const theme = getTheme(isDarkMode);
   const {
     isDriving,
     score,
@@ -21,6 +27,13 @@ export default function DashboardScreen({ isDarkMode, controller }) {
     handleSuddenBrake,
   } = controller;
 
+  // Reanimated Shared Values
+  const scoreSV = useSharedValue(0);
+
+  useEffect(() => {
+    scoreSV.value = withTiming(isDriving ? score : 0, { duration: 1000 });
+  }, [score, isDriving]);
+
   // Format time (MM:SS)
   const formatTime = (totalSeconds) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -28,28 +41,23 @@ export default function DashboardScreen({ isDarkMode, controller }) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Theme styling
-  const colors = {
-    bg: isDarkMode ? '#0F1015' : '#F1F5F9',
-    cardBg: isDarkMode ? '#171923' : '#FFFFFF',
-    border: isDarkMode ? '#222530' : '#E2E8F0',
-    title: isDarkMode ? '#FFFFFF' : '#0F172A',
-    text: isDarkMode ? '#94A3B8' : '#475569',
-    hudCircleBg: isDarkMode ? '#222530' : '#E2E8F0',
-  };
-
   // SVG Ring values
   const radius = 42;
   const strokeWidth = 8.5;
-  const circumference = 2 * Math.PI * radius; // ~263.89
-  const strokeDashoffset = circumference - (circumference * (isDriving ? score : 0)) / 100;
+  const circumference = 2 * Math.PI * radius; 
 
-  // Dynamic Ring color depending on score safety range
-  const getRingColor = () => {
-    if (score > 80) return isDarkMode ? '#F59E0B' : '#10B981'; // Amber/Emerald
-    if (score > 60) return '#F97316'; // Orange
-    return '#EF4444'; // Red danger
-  };
+  const animatedProps = useAnimatedProps(() => {
+    const strokeDashoffset = circumference - (circumference * scoreSV.value) / 100;
+    const stroke = interpolateColor(
+      scoreSV.value,
+      [0, 60, 90, 100],
+      [theme.colors.danger, theme.colors.warning, theme.colors.primary, theme.colors.primary]
+    );
+    return {
+      strokeDashoffset,
+      stroke
+    };
+  });
 
   // Dynamic Weather Visual Data Builder
   const getWeatherCardData = () => {
@@ -60,80 +68,53 @@ export default function DashboardScreen({ isDarkMode, controller }) {
       icon: 'sun'
     };
 
-    if (icon === 'cloud-rain') {
+    if (isWetRoad) {
       return {
-        title: `${description} (${temperature}°C)`,
-        subtitle: 'Pista escorregadia. A distância de travagem aumenta. Reduza a velocidade.',
-        bgColor: isDarkMode ? 'rgba(59, 130, 246, 0.12)' : '#E0F2FE',
-        borderColor: isDarkMode ? 'rgba(59, 130, 246, 0.25)' : '#BAE6FD',
-        titleColor: '#0284C7',
-        subColor: '#0369A1',
-        icon: <CloudRain size={20} color="#0284C7" />
+        bgColor: isDarkMode ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+        borderColor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : '#FEE2E2',
+        title: 'Pista Escorregadia',
+        subtitle: `${temperature}°C • ${description}. Aumente a distância de segurança.`,
+        icon: <CloudRain size={20} color="#EF4444" />,
+        titleColor: '#EF4444',
+        subColor: isDarkMode ? '#FCA5A5' : '#991B1B'
       };
     }
-    if (icon === 'snowflake') {
-      return {
-        title: `${description} (${temperature}°C)`,
-        subtitle: 'Pista com acumulação de neve/gelo. Aderência extremamente reduzida. Cuidado máximo.',
-        bgColor: isDarkMode ? 'rgba(6, 182, 212, 0.12)' : '#ECFEFF',
-        borderColor: isDarkMode ? 'rgba(6, 182, 212, 0.25)' : '#CFFAFE',
-        titleColor: '#0891B2',
-        subColor: '#0E7490',
-        icon: <Snowflake size={20} color="#0891B2" />
-      };
-    }
-    if (icon === 'cloud-fog') {
-      return {
-        title: `${description} (${temperature}°C)`,
-        subtitle: 'Visibilidade muito reduzida devido a nevoeiro intenso. Utilize faróis médios.',
-        bgColor: isDarkMode ? 'rgba(100, 116, 139, 0.12)' : '#F1F5F9',
-        borderColor: isDarkMode ? 'rgba(100, 116, 139, 0.25)' : '#E2E8F0',
-        titleColor: '#475569',
-        subColor: '#334155',
-        icon: <CloudFog size={20} color="#475569" />
-      };
-    }
-    if (icon === 'cloud') {
-      return {
-        title: `${description} (${temperature}°C)`,
-        subtitle: 'Tempo nublado com pista seca. Conduza com a atenção habitual.',
-        bgColor: isDarkMode ? 'rgba(148, 163, 184, 0.08)' : '#F8FAFC',
-        borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.15)' : '#F1F5F9',
-        titleColor: isDarkMode ? '#94A3B8' : '#475569',
-        subColor: isDarkMode ? '#64748B' : '#64748B',
-        icon: <Cloud size={20} color={isDarkMode ? '#94A3B8' : '#475569'} />
-      };
-    }
-    
-    // Default Sun / Clear
+
     return {
-      title: `${description} (${temperature}°C)`,
-      subtitle: 'Pista totalmente seca. Condições ideais para conduzir. Boa viagem!',
-      bgColor: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : '#ECFDF5',
-      borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#D1FAE5',
-      titleColor: '#059669',
-      subColor: '#047857',
-      icon: <Sun size={20} color="#10B981" />
+      bgColor: isDarkMode ? 'rgba(245, 158, 11, 0.08)' : '#FFFBEB',
+      borderColor: isDarkMode ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
+      title: 'Condição de Pista: Boa',
+      subtitle: `${temperature}°C • ${description}. Conduza com atenção.`,
+      icon: icon === 'sun' ? <Sun size={20} color="#F59E0B" /> : 
+            icon === 'cloud' ? <Cloud size={20} color="#F59E0B" /> :
+            icon === 'cloud-fog' ? <CloudFog size={20} color="#F59E0B" /> :
+            <Sun size={20} color="#F59E0B" />,
+      titleColor: '#B45309',
+      subColor: isDarkMode ? '#FCD34D' : '#92400E'
     };
   };
 
   const weatherCard = getWeatherCardData();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       {/* Dynamic Real-time Weather Context Card */}
-      <View style={[
-        styles.rainAlertCard, 
-        { 
-          backgroundColor: weatherCard.bgColor, 
-          borderColor: weatherCard.borderColor,
-          borderWidth: 1
-        }
-      ]}>
+      <View 
+        style={[
+          styles.rainAlertCard, 
+          { 
+            backgroundColor: weatherCard.bgColor, 
+            borderColor: weatherCard.borderColor,
+            borderWidth: 1
+          }
+        ]}
+        accessibilityLabel={`Informação de clima: ${weatherCard.title}. ${weatherCard.subtitle}`}
+        accessibilityRole="summary"
+      >
         <View style={[
           styles.rainIconBadge, 
           { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }
-        ]}>
+        ]} importantForAccessibility="no-hide-descendants">
           {weatherCard.icon}
         </View>
         <View style={styles.rainTextContainer}>
@@ -147,52 +128,56 @@ export default function DashboardScreen({ isDarkMode, controller }) {
       </View>
 
       {/* Main Driving Dashboard Card */}
-      <View style={[styles.dashboardCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-        <View style={styles.cardHeader}>
+      <View style={[styles.dashboardCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }, theme.shadows.medium]}>
+        <View style={styles.cardHeader} accessibilityRole="header">
           <View>
-            <Text style={[styles.cardTitle, { color: colors.title }]}>Condução</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.text }]}>Análise de sensores em tempo real</Text>
+            <Text style={[styles.cardTitle, { color: theme.colors.title }]}>Painel de Condução</Text>
+            <Text style={[styles.cardSubtitle, { color: theme.colors.text }]}>Telemetria em tempo real</Text>
           </View>
           {isDriving && (
-            <View style={styles.activeTimerBadge}>
+            <View 
+              style={[styles.activeTimerBadge, { backgroundColor: theme.colors.secondary }]}
+              accessibilityLabel={`Duração da viagem: ${formatTime(tripSeconds)}`}
+            >
               <View style={styles.pulseDot} />
-              <Text style={styles.activeTimerText}>{formatTime(tripSeconds)}</Text>
+              <Text style={[styles.activeTimerText, { color: theme.colors.onSecondary }]}>{formatTime(tripSeconds)}</Text>
             </View>
           )}
         </View>
 
         {/* Circular Progress Gauge */}
-        <View style={styles.gaugeContainer}>
-          <View style={styles.svgWrapper}>
+        <View 
+          style={styles.gaugeContainer}
+          accessibilityLabel={`Score de condução atual: ${isDriving ? score : 'indisponível'} de 100`}
+          accessibilityRole="progressbar"
+          accessibilityValue={{ now: score, min: 0, max: 100 }}
+        >
+          <View style={styles.svgWrapper} importantForAccessibility="no-hide-descendants">
             <Svg width="160" height="160" viewBox="0 0 100 100">
-              {/* Secondary background circle track */}
               <Circle
                 cx="50"
                 cy="50"
                 r={radius}
-                stroke={colors.hudCircleBg}
+                stroke={isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}
                 strokeWidth={strokeWidth - 0.5}
                 fill="transparent"
               />
-              {/* Dynamic primary circle indicator */}
-              <Circle
+              <AnimatedCircle
                 cx="50"
                 cy="50"
                 r={radius}
-                stroke={getRingColor()}
                 strokeWidth={strokeWidth}
                 fill="transparent"
                 strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
+                animatedProps={animatedProps}
                 strokeLinecap="round"
-                transform="rotate(-90 50 50)" // Rotate to start from top
+                transform="rotate(-90 50 50)" 
               />
             </Svg>
             
-            {/* Absolute positioning inside SVG */}
             <View style={styles.gaugeTextContainer}>
-              <Text style={[styles.gaugeLabel, { color: colors.text }]}>SCORE</Text>
-              <Text style={[styles.gaugeValue, { color: colors.title }]}>
+              <Text style={[styles.gaugeLabel, { color: theme.colors.text }]}>SCORE</Text>
+              <Text style={[styles.gaugeValue, { color: theme.colors.title }]}>
                 {isDriving ? score : '--'}
               </Text>
             </View>
@@ -201,74 +186,86 @@ export default function DashboardScreen({ isDarkMode, controller }) {
 
         {/* Speed and Fatigue indicators */}
         <View style={styles.metricsGrid}>
-          {/* Speed Indicator */}
-          <View style={[styles.metricBox, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-            <Text style={[styles.metricBoxLabel, { color: colors.text }]}>VELOCIDADE</Text>
-            <Text style={[styles.metricBoxValue, { color: colors.title }]}>
+          <View 
+            style={[styles.metricBox, { backgroundColor: theme.colors.bg, borderColor: theme.colors.border }]}
+            accessibilityLabel={`Velocidade atual: ${isDriving ? speed : '0'} km/h`}
+          >
+            <Text style={[styles.metricBoxLabel, { color: theme.colors.text }]}>VELOCIDADE</Text>
+            <Text style={[styles.metricBoxValue, { color: theme.colors.title }]}>
               {isDriving ? speed : '0'}
               <Text style={styles.metricBoxUnit}> km/h</Text>
             </Text>
           </View>
 
-          {/* Fatigue Level Indicator */}
-          <View style={[styles.metricBox, { backgroundColor: colors.bg, borderColor: colors.border, overflow: 'hidden' }]}>
+          <View 
+            style={[styles.metricBox, { backgroundColor: theme.colors.bg, borderColor: theme.colors.border, overflow: 'hidden' }]}
+            accessibilityLabel={`Nível de fadiga: ${Math.round(fatigueLevel)}%`}
+          >
             <View style={styles.fatigueHeader}>
-              <Coffee size={12} color="#F59E0B" />
-              <Text style={[styles.metricBoxLabel, { color: colors.text }]}> FADIGA</Text>
+              <Coffee size={12} color={theme.colors.primary} />
+              <Text style={[styles.metricBoxLabel, { color: theme.colors.text }]}> FADIGA</Text>
             </View>
-            <Text style={[styles.metricBoxValue, fatigueLevel > 70 ? styles.fatigueDanger : { color: colors.title }]}>
+            <Text style={[styles.metricBoxValue, fatigueLevel > 70 ? { color: theme.colors.danger } : { color: theme.colors.title }]}>
               {Math.round(fatigueLevel)}%
             </Text>
-            
-            {/* Bottom Fatigue Progress Bar */}
-            <View style={styles.fatigueProgressBarBg}>
-              <View style={[styles.fatigueProgressBarFill, { width: `${fatigueLevel}%` }]} />
+            <View style={[styles.fatigueProgressBarBg, { backgroundColor: theme.colors.border }]}>
+              <View style={[styles.fatigueProgressBarFill, { width: `${fatigueLevel}%`, backgroundColor: fatigueLevel > 70 ? theme.colors.danger : theme.colors.primary }]} />
             </View>
           </View>
         </View>
 
         {/* Start / Stop Trigger */}
         <TouchableOpacity
-          onPress={toggleTrip}
-          style={[styles.actionBtn, isDriving ? styles.stopBtn : styles.startBtn]}
+          onPress={() => {
+            Haptics.notificationAsync(isDriving ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
+            toggleTrip();
+          }}
+          style={[styles.actionBtn, isDriving ? { backgroundColor: theme.colors.secondary } : { backgroundColor: theme.colors.primary }]}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={isDriving ? "Parar viagem" : "Iniciar viagem"}
         >
           {isDriving ? (
             <>
-              <Square size={16} color="#FFFFFF" fill="#FFFFFF" />
-              <Text style={styles.actionBtnText}>Parar Viagem</Text>
+              <Square size={16} color={theme.colors.onSecondary} fill={theme.colors.onSecondary} />
+              <Text style={[styles.actionBtnText, { color: theme.colors.onSecondary }]}>Parar Viagem</Text>
             </>
           ) : (
             <>
-              <Play size={16} color="#000000" fill="#000000" />
-              <Text style={[styles.actionBtnText, { color: '#000000' }]}>Iniciar Viagem</Text>
+              <Play size={16} color={theme.colors.onPrimary} fill={theme.colors.onPrimary} />
+              <Text style={[styles.actionBtnText, { color: theme.colors.onPrimary }]}>Iniciar Viagem</Text>
             </>
           )}
         </TouchableOpacity>
 
-        {/* Simulation Triggers (Sudden Braking) */}
+        {/* Simulation Triggers */}
         {isDriving && (
           <View style={styles.simulationContainer}>
             <TouchableOpacity
-              onPress={handleSuddenBrake}
-              style={[styles.simButton, { borderColor: colors.border }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                handleSuddenBrake(-25);
+              }}
+              style={[styles.simButton, { borderColor: theme.colors.border }]}
               activeOpacity={0.7}
             >
-              <AlertTriangle size={14} color="#EF4444" />
-              <Text style={[styles.simButtonText, { color: colors.title }]}>Simular Travagem Brusca</Text>
+              <AlertTriangle size={14} color={theme.colors.danger} />
+              <Text style={[styles.simButtonText, { color: theme.colors.title }]}>Simular Travagem</Text>
             </TouchableOpacity>
 
-            {/* Distraction Sim Switch */}
             <View style={styles.distractionRow}>
               <View style={styles.distractionLabelContainer}>
-                <Smartphone size={14} color={phoneDistracted ? '#EF4444' : colors.text} />
-                <Text style={[styles.distractionText, { color: colors.title }]}>Uso de Telemóvel</Text>
+                <Smartphone size={14} color={phoneDistracted ? theme.colors.danger : theme.colors.text} />
+                <Text style={[styles.distractionText, { color: theme.colors.title }]}>Telemóvel</Text>
               </View>
               <Switch
                 value={phoneDistracted}
-                onValueChange={setPhoneDistracted}
-                trackColor={{ false: '#767577', true: '#FEE2E2' }}
-                thumbColor={phoneDistracted ? '#EF4444' : '#f4f3f4'}
+                onValueChange={(val) => {
+                  if (val) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                  setPhoneDistracted(val);
+                }}
+                trackColor={{ false: theme.colors.border, true: `${theme.colors.danger}66` }}
+                thumbColor={phoneDistracted ? theme.colors.danger : '#f4f3f4'}
               />
             </View>
           </View>
@@ -285,42 +282,37 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   rainAlertCard: {
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderColor: 'rgba(59, 130, 246, 0.2)',
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 14,
+    borderRadius: 20,
     gap: 12,
-    marginBottom: 14,
   },
   rainIconBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    padding: 8,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   rainTextContainer: {
     flex: 1,
   },
   rainTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '900',
   },
   rainSubtitle: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#2563EB',
+    fontWeight: '700',
     marginTop: 2,
+    lineHeight: 13,
   },
   dashboardCard: {
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 1,
-    padding: 16,
-    flex: 1,
-    justifyContent: 'space-between',
-    maxHeight: 520,
+    padding: 20,
+    gap: 20,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -333,33 +325,31 @@ const styles = StyleSheet.create({
   },
   cardSubtitle: {
     fontSize: 11,
-    fontWeight: '500',
-    marginTop: 2,
+    fontWeight: '700',
   },
   activeTimerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 99,
     gap: 6,
   },
   pulseDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
+    backgroundColor: '#EF4444',
   },
   activeTimerText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
-    color: '#047857',
+    fontVariant: ['tabular-nums'],
   },
   gaugeContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 12,
+    marginVertical: 4,
   },
   svgWrapper: {
     position: 'relative',
@@ -371,17 +361,16 @@ const styles = StyleSheet.create({
   gaugeTextContainer: {
     position: 'absolute',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   gaugeLabel: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.5,
   },
   gaugeValue: {
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: -1,
+    fontSize: 48,
+    fontWeight: '950',
+    marginTop: -4,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -389,85 +378,64 @@ const styles = StyleSheet.create({
   },
   metricBox: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    padding: 12,
-    position: 'relative',
+    padding: 14,
+    gap: 4,
   },
   metricBoxLabel: {
     fontSize: 8,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   metricBoxValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '900',
-    marginTop: 4,
   },
   metricBoxUnit: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#94A3B8',
+    opacity: 0.5,
   },
   fatigueHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  fatigueDanger: {
-    color: '#EF4444',
-  },
   fatigueProgressBarBg: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     height: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
   },
   fatigueProgressBarFill: {
     height: '100%',
-    backgroundColor: '#EF4444',
+    borderRadius: 2,
   },
   actionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 14,
-    gap: 8,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 3,
-    marginTop: 12,
-  },
-  startBtn: {
-    backgroundColor: '#F59E0B',
-    shadowColor: '#F59E0B',
-  },
-  stopBtn: {
-    backgroundColor: '#EF4444',
-    shadowColor: '#EF4444',
+    height: 54,
+    borderRadius: 16,
+    gap: 10,
   },
   actionBtnText: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '900',
-    color: '#FFFFFF',
   },
   simulationContainer: {
-    marginTop: 12,
-    gap: 8,
-    borderTopWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.1)',
-    paddingTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
   },
   simButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderWidth: 1,
     borderRadius: 10,
+    borderWidth: 1,
     gap: 6,
   },
   simButtonText: {
@@ -477,9 +445,7 @@ const styles = StyleSheet.create({
   distractionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginTop: 2,
+    gap: 12,
   },
   distractionLabelContainer: {
     flexDirection: 'row',

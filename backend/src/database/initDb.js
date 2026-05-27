@@ -1,329 +1,559 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
-const bcrypt = require('bcryptjs');
+const sequelize = require("../config/db");
+const {
+  User,
+  Driver,
+  DriverHistory,
+  Audit,
+  Trip,
+  Challenge,
+  Tip,
+  Reward,
+  AppConfig,
+} = require("../models");
+const bcrypt = require("bcryptjs");
+const fs = require("fs");
+const path = require("path");
 
-const dbPath = path.join(__dirname, 'db.sqlite');
+async function initDb() {
+  try {
+    const dbPath = path.join(__dirname, "db.sqlite");
 
-// Remove existing database to ensure a clean optimized run
-if (fs.existsSync(dbPath)) {
-  fs.unlinkSync(dbPath);
-}
+    // Remove existing database to ensure a clean run if desired
+    // (Optional: depending on if you want to wipe it every time)
+    if (fs.existsSync(dbPath)) {
+      fs.unlinkSync(dbPath);
+      console.log("Existing database removed for fresh start.");
+    }
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database:', err);
+    // Sync database
+    console.log("Syncing database...");
+    await sequelize.sync({ force: true });
+    console.log("Database synced successfully.");
+
+    // Seed Data
+    console.log("Seeding data...");
+
+    // 1. Users
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash("123456", salt);
+
+    await User.create({
+      name: "Admin Master",
+      email: "admin@shift.com",
+      password_hash: passwordHash,
+      role: "admin",
+      plate: null,
+    });
+
+    const passengerUser = await User.create({
+      name: "Passageiro Shift",
+      email: "passageiro@shift.com",
+      password_hash: passwordHash,
+      role: "passenger",
+      plate: null,
+    });
+
+    const driverUser = await User.create({
+      name: "Motorista Shift",
+      email: "motorista@shift.com",
+      password_hash: passwordHash,
+      role: "driver",
+      plate: "SHIFT-2026",
+    });
+
+    const userJoao = await User.create({
+      name: "João S.",
+      email: "joao@shift.com",
+      password_hash: passwordHash,
+      role: "driver",
+      plate: "ABC-1234",
+    });
+
+    const userCarlos = await User.create({
+      name: "Carlos M.",
+      email: "carlos@shift.com",
+      password_hash: passwordHash,
+      role: "driver",
+      plate: "SUI-0099",
+    });
+
+    const userAna = await User.create({
+      name: "Ana P.",
+      email: "ana@shift.com",
+      password_hash: passwordHash,
+      role: "driver",
+      plate: "XYZ-9876",
+    });
+
+    // 2. App Config
+    await AppConfig.bulkCreate([
+      {
+        key: "MAX_SPEED_LIMIT",
+        value: "90",
+        description: "Velocidade máxima permitida em via urbana e rodovia.",
+      },
+      {
+        key: "BRAKING_DECELE_THRESHOLD",
+        value: "-10",
+        description:
+          "Desaceleração mínima para considerar uma travagem brusca.",
+      },
+      {
+        key: "GYRO_DISTRACTION_LIMIT",
+        value: "1.2",
+        description: "Sensibilidade do giroscópio para detetar uso de celular.",
+      },
+    ]);
+
+    // 3. Drivers
+    const drivers = await Driver.bulkCreate([
+      {
+        plate: "SHIFT-2026",
+        name: driverUser.name,
+        score: 96,
+        trips: 18,
+        status: "excelente",
+        badges: ["Foco no Trânsito", "Condução Segura"],
+        rating: 4.9,
+      },
+      {
+        plate: "ABC-1234",
+        name: "João S.",
+        score: 98,
+        trips: 142,
+        status: "excelente",
+        badges: ["Suave", "Respeita Limites"],
+        rating: 4.8,
+      },
+      {
+        plate: "SUI-0099",
+        name: "Carlos M.",
+        score: 42,
+        trips: 89,
+        status: "atenção",
+        badges: ["Aceleração Brusca", "Avança Sinal Vermelho"],
+        rating: 2.5,
+      },
+      {
+        plate: "XYZ-9876",
+        name: "Ana P.",
+        score: 85,
+        trips: 56,
+        status: "bom",
+        badges: ["Focada"],
+        rating: 4.2,
+      },
+    ]);
+
+    // 4. Driver History
+    const motorista = drivers.find((d) => d.plate === "SHIFT-2026");
+    const joao = drivers.find((d) => d.plate === "ABC-1234");
+    const carlos = drivers.find((d) => d.plate === "SUI-0099");
+    const ana = drivers.find((d) => d.plate === "XYZ-9876");
+
+    await DriverHistory.bulkCreate([
+      {
+        driver_id: motorista.id,
+        date: "Hoje, 08:15",
+        score: 98,
+        duration: "25 min",
+        status: "excelente",
+      },
+      {
+        driver_id: motorista.id,
+        date: "Ontem, 19:40",
+        score: 95,
+        duration: "31 min",
+        status: "excelente",
+      },
+      {
+        driver_id: joao.id,
+        date: "Ontem, 18:30",
+        score: 99,
+        duration: "15 min",
+        status: "excelente",
+      },
+      {
+        driver_id: joao.id,
+        date: "15 Mai, 09:00",
+        score: 97,
+        duration: "22 min",
+        status: "excelente",
+      },
+      {
+        driver_id: carlos.id,
+        date: "Hoje, 08:15",
+        score: 35,
+        duration: "45 min",
+        status: "perigo",
+        issue: "3 travagens bruscas e excesso de velocidade",
+      },
+      {
+        driver_id: carlos.id,
+        date: "Ontem, 22:10",
+        score: 50,
+        duration: "18 min",
+        status: "perigo",
+        issue: "Curva perigosa em alta velocidade",
+      },
+      {
+        driver_id: ana.id,
+        date: "Hoje, 12:00",
+        score: 88,
+        duration: "10 min",
+        status: "bom",
+      },
+    ]);
+
+    // 4.1 Telemetria de Exemplo
+    await Trip.bulkCreate([
+      {
+        driver_id: driverUser.id,
+        driver_plate: "SHIFT-2026",
+        score: 96,
+        speed_avg: 61.2,
+        fatigue_max: 1.0,
+        distance: 28.4,
+        duration_seconds: 1740,
+      },
+      {
+        driver_id: driverUser.id,
+        driver_plate: "SHIFT-2026",
+        score: 94,
+        speed_avg: 58.9,
+        fatigue_max: 1.1,
+        distance: 19.6,
+        duration_seconds: 1320,
+      },
+      {
+        driver_id: userJoao.id,
+        driver_plate: "ABC-1234",
+        score: 98,
+        speed_avg: 64.2,
+        fatigue_max: 1.1,
+        distance: 32.8,
+        duration_seconds: 1980,
+      },
+      {
+        driver_id: userJoao.id,
+        driver_plate: "ABC-1234",
+        score: 96,
+        speed_avg: 58.7,
+        fatigue_max: 0.9,
+        distance: 18.4,
+        duration_seconds: 1260,
+      },
+      {
+        driver_id: userCarlos.id,
+        driver_plate: "SUI-0099",
+        score: 41,
+        speed_avg: 83.1,
+        fatigue_max: 2.3,
+        distance: 24.1,
+        duration_seconds: 2100,
+      },
+      {
+        driver_id: userAna.id,
+        driver_plate: "XYZ-9876",
+        score: 87,
+        speed_avg: 55.4,
+        fatigue_max: 1.0,
+        distance: 14.7,
+        duration_seconds: 1080,
+      },
+    ]);
+
+    // 5. Challenges
+    await Challenge.bulkCreate([
+      {
+        title: "Auditor Cidadão",
+        description:
+          "Avalie 1 corrida como passageiro hoje e deixe um feedback construtivo.",
+        points: 150,
+        role_restriction: "passenger",
+      },
+      {
+        title: "Modo Foco",
+        description: "Faça uma viagem como motorista sem tocar no celular.",
+        points: 200,
+        role_restriction: "driver",
+      },
+      {
+        title: "Guardião do Maio Amarelo",
+        description:
+          "Mantenha a telemetria acima de 95 por 3 viagens seguidas.",
+        points: 500,
+        role_restriction: "driver",
+      },
+      {
+        title: "Radar de Cuidado",
+        description:
+          "Registe 5 alertas de segurança e mantenha score acima de 90.",
+        points: 300,
+        role_restriction: "all",
+      },
+      {
+        title: "Explorador da Via",
+        description: "Registe sua primeira auditoria em uma autoestrada.",
+        points: 100,
+        role_restriction: "passenger",
+      },
+      {
+        title: "Zero Aceleração Brusca",
+        description: "Faça 5 viagens consecutivas sem detecção de acelerações agressivas.",
+        points: 350,
+        role_restriction: "driver",
+      },
+      {
+        title: "Anjo da Guarda",
+        description: "Envie feedbacks com avaliação 5 estrelas para 3 motoristas que te impressionaram.",
+        points: 250,
+        role_restriction: "passenger",
+      },
+      {
+        title: "Maratona Segura",
+        description: "Mantenha o Score de Segurança no máximo por uma semana inteira (mínimo 10 corridas).",
+        points: 1000,
+        role_restriction: "driver",
+      },
+      {
+        title: "Reporte na Chuva",
+        description: "Ajude a mapear uma zona de risco durante condições climáticas adversas (chuva/nevoeiro).",
+        points: 180,
+        role_restriction: "all",
+      }
+    ]);
+
+    // 6. Tips
+    await Tip.bulkCreate([
+      {
+        title: "Cinto no banco de trás",
+        subtitle: "Segurança de Base",
+        content:
+          "Use sempre o cinto em todos os bancos. Em caso de impacto, ele reduz drasticamente o risco de ferimentos graves.",
+        points: 50,
+      },
+      {
+        title: "Fadiga ao volante",
+        subtitle: "Estado de Alerta",
+        content:
+          "Se sentir sono, pare. Fadiga altera os reflexos e aumenta a chance de erro mesmo em percursos curtos.",
+        points: 100,
+      },
+      {
+        title: "Distância na chuva",
+        subtitle: "Direção Defensiva",
+        content:
+          "Na chuva, aumente a distância de segurança e reduza a velocidade para ter mais tempo de reação.",
+        points: 80,
+      },
+      {
+        title: "Celular no painel",
+        subtitle: "Foco Total",
+        content:
+          "Evite pegar no telemóvel durante a condução. Qualquer distração pode comprometer a sua segurança e a de terceiros.",
+        points: 60,
+      },
+      {
+        title: "Calibragem dos Pneus",
+        subtitle: "Manutenção",
+        content: "Pneus descalibrados aumentam a distância de frenagem e o consumo de combustível. Verifique-os semanalmente.",
+        points: 70,
+      },
+      {
+        title: "Uso das Setas",
+        subtitle: "Comunicação Essencial",
+        content: "As setas são a única forma de avisar os outros condutores sobre as suas intenções. Use-as sempre, mesmo se a via parecer vazia.",
+        points: 55,
+      },
+      {
+        title: "Farol Baixo de Dia",
+        subtitle: "Visibilidade",
+        content: "Ligar o farol baixo durante o dia ajuda os outros motoristas e pedestres a notarem seu veículo mais rapidamente em rodovias.",
+        points: 65,
+      },
+      {
+        title: "Cuidado com Pontos Cegos",
+        subtitle: "Direção Preventiva",
+        content: "Mantenha a atenção aos espelhos e ajuste-os corretamente. Evite dirigir por longos períodos no ponto cego de caminhões e ônibus.",
+        points: 90,
+      }
+    ]);
+
+    // 7. Rewards
+    await Reward.bulkCreate([
+      {
+        title: "Desconto em Combustível",
+        description: "Mantenha Score acima de 90 por 7 dias para resgatar.",
+        progress: 85,
+        color: "#F59E0B",
+        completed: false,
+      },
+      {
+        title: "Prioridade VIP nos Apps",
+        description:
+          "Entre na fila antes de outros condutores por mérito de condução.",
+        progress: 100,
+        color: "#10B981",
+        completed: true,
+      },
+      {
+        title: "Desconto em Lavagem Premium",
+        description: "Mantenha Score acima de 95 por 5 corridas consecutivas.",
+        progress: 60,
+        color: "#F59E0B",
+        completed: false,
+      },
+      {
+        title: "Bónus de Perfil",
+        description:
+          "Atinja 10 viagens perfeitas para desbloquear um bónus especial.",
+        progress: 40,
+        color: "#3B82F6",
+        completed: false,
+      },
+      {
+        title: "Voucher Oficina Parceira",
+        description: "Complete 3 Missões do Maio Amarelo para receber 15% de desconto na troca de óleo.",
+        progress: 75,
+        color: "#6366F1",
+        completed: false,
+      },
+      {
+        title: "Avatar Exclusivo SHIFT Elite",
+        description: "Chegue ao Nível 'Mestre da Segurança' (50+ viagens limpas).",
+        progress: 30,
+        color: "#10B981",
+        completed: false,
+      },
+      {
+        title: "Seguro Auto Reduzido",
+        description: "Mantenha um Rating comunitário de 4.9+ por 3 meses (Parceria Seguradora).",
+        progress: 90,
+        color: "#F59E0B",
+        completed: false,
+      },
+      {
+        title: "Café Grátis em Viagens Longas",
+        description: "Resgate após concluir o curso interativo sobre 'Fadiga ao Volante'.",
+        progress: 100,
+        color: "#10B981",
+        completed: true,
+      }
+    ]);
+
+    // 8. Sample Hotspots & Audits (Audits with coordinates)
+    await Audit.bulkCreate([
+      {
+        passenger_id: passengerUser.id,
+        driver_plate: "SUI-0099",
+        road_context: "urbana",
+        weather_context: "limpo",
+        score: 40,
+        rating_stars: 2,
+        infractions: ["Travagem Brusca", "Excesso de Velocidade"],
+        latitude: -23.5505,
+        longitude: -46.6333,
+        feedback: "Motorista muito agressivo no cruzamento.",
+      },
+      {
+        passenger_id: passengerUser.id,
+        driver_plate: "SHIFT-2026",
+        road_context: "rodovia",
+        weather_context: "limpo",
+        score: 97,
+        rating_stars: 5,
+        infractions: [],
+        positive_actions: ["Direção Suave", "Velocidade Adequada"],
+        latitude: -23.5615,
+        longitude: -46.6543,
+        feedback: "Condução muito estável e segura.",
+      },
+      {
+        passenger_id: passengerUser.id,
+        driver_plate: "SUI-0099",
+        road_context: "urbana",
+        weather_context: "chuva",
+        score: 30,
+        rating_stars: 1,
+        infractions: ["Avanço de Sinal", "Uso de Telemóvel"],
+        latitude: -23.5515,
+        longitude: -46.6343,
+        feedback: "Furou o sinal vermelho na chuva mexendo no celular!",
+      },
+      {
+        passenger_id: passengerUser.id,
+        driver_plate: "ABC-1234",
+        road_context: "rodovia",
+        weather_context: "limpo",
+        score: 95,
+        rating_stars: 5,
+        infractions: [],
+        positive_actions: ["Muito Focado"],
+        latitude: -23.5621,
+        longitude: -46.6551,
+        feedback: "Condução exemplar.",
+      },
+      {
+        passenger_id: null,
+        driver_plate: "XYZ-9876",
+        road_context: "urbana",
+        weather_context: "noite",
+        score: 85,
+        rating_stars: 4,
+        infractions: ["Excesso de Velocidade"],
+        positive_actions: ["Uso do Cinto"],
+        latitude: -23.5630,
+        longitude: -46.6560,
+        feedback: "Andou um pouco rápido na marginal, mas de resto foi bem.",
+      },
+      {
+        passenger_id: passengerUser.id,
+        driver_plate: "XYZ-9876",
+        road_context: "rodovia",
+        weather_context: "chuva",
+        score: 80,
+        rating_stars: 4,
+        infractions: [],
+        positive_actions: ["Direção Suave"],
+        latitude: -23.5650,
+        longitude: -46.6590,
+        feedback: "Muito cuidadosa durante a tempestade, me senti seguro.",
+      },
+      {
+        passenger_id: null,
+        driver_plate: "SHIFT-2026",
+        road_context: "urbana",
+        weather_context: "limpo",
+        score: 100,
+        rating_stars: 5,
+        infractions: [],
+        positive_actions: ["Direção Suave", "Uso do Cinto", "Muito Focado"],
+        latitude: -23.5700,
+        longitude: -46.6600,
+        feedback: "Perfeito, zero reclamações.",
+      },
+      {
+        passenger_id: passengerUser.id,
+        driver_plate: "SUI-0099",
+        road_context: "rodovia",
+        weather_context: "noite",
+        score: 55,
+        rating_stars: 3,
+        infractions: ["Travagem Brusca"],
+        positive_actions: [],
+        latitude: -23.5800,
+        longitude: -46.6700,
+        feedback: "Freou muito em cima dos pardais.",
+      }
+    ]);
+
+    console.log("Seed data inserted successfully.");
+    process.exit(0);
+  } catch (error) {
+    console.error("Error initializing database:", error);
     process.exit(1);
   }
-  console.log('Database connected successfully at:', dbPath);
-});
+}
 
-db.serialize(() => {
-  // 1. USERS TABLE
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT CHECK(role IN ('driver', 'passenger', 'admin')) NOT NULL,
-      plate TEXT, -- Assigned if role is 'driver'
-      bonus_points INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // 2. DRIVERS TABLE (Linked to vehicle tracking)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS drivers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      plate TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      score INTEGER DEFAULT 100,
-      trips INTEGER DEFAULT 0,
-      status TEXT DEFAULT 'good',
-      badges TEXT, -- JSON Array of strings
-      rating REAL DEFAULT 5.0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // 3. DRIVER HISTORY TABLE (Trips linked to driver)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS driver_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      driver_id INTEGER NOT NULL,
-      date TEXT NOT NULL,
-      score INTEGER NOT NULL,
-      duration TEXT NOT NULL,
-      status TEXT NOT NULL,
-      issue TEXT,
-      FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
-    )
-  `);
-
-  // 4. AUDITS TABLE (Crowdsourced passenger audits, now including author_id)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS audits (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      passenger_id INTEGER, -- Optional link to logged-in user
-      driver_plate TEXT NOT NULL,
-      road_context TEXT NOT NULL,
-      weather_context TEXT NOT NULL,
-      score INTEGER NOT NULL,
-      rating_stars INTEGER NOT NULL,
-      positive_actions TEXT, -- JSON Array
-      infractions TEXT, -- JSON Array
-      feedback TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (passenger_id) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-
-  // 5. TRIPS TABLE (Logged in user self-trips, now including driver_id)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS trips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      driver_id INTEGER, -- Link to logged-in user
-      driver_plate TEXT NOT NULL,
-      score INTEGER NOT NULL,
-      speed_avg REAL NOT NULL,
-      fatigue_max REAL NOT NULL,
-      distance REAL NOT NULL,
-      duration_seconds INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // 6. CAMPAIGN CHALLENGES TABLE (Daily and monthly safe driving challenges)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS campaign_challenges (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      points INTEGER NOT NULL,
-      is_completed INTEGER DEFAULT 0,
-      role_restriction TEXT CHECK(role_restriction IN ('driver', 'passenger', 'all')) NOT NULL
-    )
-  `);
-
-  // 7. CAMPAIGN TIPS TABLE (Safe-driving educational tips)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS campaign_tips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      subtitle TEXT NOT NULL,
-      content TEXT NOT NULL,
-      points INTEGER NOT NULL
-    )
-  `);
-
-  // 8. CLUBE REWARDS TABLE (Benefits, priority lanes and discounts)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS clube_rewards (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL,
-      progress INTEGER NOT NULL,
-      color TEXT NOT NULL,
-      completed INTEGER DEFAULT 0
-    )
-  `);
-
-  // 9. APP CONFIGURATION TABLE (Administrative controls)
-  db.run(`
-    CREATE TABLE IF NOT EXISTS app_config (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      description TEXT
-    )
-  `);
-
-  // ==========================================
-  // HIGH-PERFORMANCE INDEXES (OPTIMIZATION)
-  // ==========================================
-  
-  // Fast query index for challenges by role
-  db.run(`CREATE INDEX IF NOT EXISTS idx_challenges_role ON campaign_challenges(role_restriction);`);
-
-  // Instant user search by email (Login check)
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);`);
-
-  // Instant driver search by plate
-  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_drivers_plate ON drivers(plate);`);
-
-  // Foreign key index for history lookup
-  db.run(`CREATE INDEX IF NOT EXISTS idx_history_driver_id ON driver_history(driver_id);`);
-
-  // Fast retrieval of reviews/audits by plate (descending order by date)
-  db.run(`CREATE INDEX IF NOT EXISTS idx_audits_driver_plate_date ON audits(driver_plate, created_at DESC);`);
-
-  // Fast retrieval of self trips by date
-  db.run(`CREATE INDEX IF NOT EXISTS idx_trips_driver_plate_date ON trips(driver_plate, created_at DESC);`);
-
-  console.log('Tables and indexes created successfully.');
-
-  // ==========================================
-  // SEED DATA
-  // ==========================================
-
-  // Hashing password '123456' for seed accounts
-  const salt = bcrypt.genSaltSync(10);
-  const passwordHash = bcrypt.hashSync('123456', salt);
-
-  // Insert seed users
-  const stmtUser = db.prepare(`
-    INSERT INTO users (name, email, password_hash, role, plate)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-
-  // 1. Seed Driver Profile
-  stmtUser.run('João Silva', 'joao@shift.com', passwordHash, 'driver', 'XYZ-1992');
-  // 2. Seed Passenger Profile
-  stmtUser.run('Ana Santos', 'ana@shift.com', passwordHash, 'passenger', null);
-  // 3. Seed Admin Profile
-  stmtUser.run('SHIFT Administrador', 'admin@shift.com', passwordHash, 'admin', null);
-  stmtUser.finalize();
-
-  // 9. Seed dynamic App configurations
-  const configStmt = db.prepare(`
-    INSERT INTO app_config (key, value, description)
-    VALUES (?, ?, ?)
-  `);
-  configStmt.run('MAX_SPEED_LIMIT', '90', 'Velocidade máxima permitida na autoestrada em km/h');
-  configStmt.run('BRAKING_DECELE_THRESHOLD', '-10', 'Desaceleração física para travar em km/h/s');
-  configStmt.run('GYRO_DISTRACTION_LIMIT', '1.2', 'Sensibilidade do giroscópio para detetar celular (rad/s)');
-  configStmt.finalize();
-
-  // Insert seed drivers (public database of audited vehicles)
-  const driversSeed = [
-    {
-      plate: 'ABC-1234',
-      name: 'João S.',
-      score: 98,
-      trips: 142,
-      status: 'excellent',
-      badges: JSON.stringify(['Suave', 'Respeita Limites']),
-      rating: 4.8
-    },
-    {
-      plate: 'SUI-0099',
-      name: 'Carlos M.',
-      score: 42,
-      trips: 89,
-      status: 'danger',
-      badges: JSON.stringify(['Aceleração Brusca', 'Avança Sinal vermelho']),
-      rating: 2.5
-    },
-    {
-      plate: 'XYZ-9876',
-      name: 'Ana P.',
-      score: 85,
-      trips: 56,
-      status: 'good',
-      badges: JSON.stringify(['Focada']),
-      rating: 4.2
-    },
-    {
-      plate: 'XYZ-1992',
-      name: 'João Silva', // Public profile for search sync
-      score: 100,
-      trips: 0,
-      status: 'excellent',
-      badges: JSON.stringify([]),
-      rating: 5.0
-    }
-  ];
-
-  const stmtDriver = db.prepare(`
-    INSERT INTO drivers (plate, name, score, trips, status, badges, rating)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  driversSeed.forEach((d) => {
-    stmtDriver.run(d.plate, d.name, d.score, d.trips, d.status, d.badges, d.rating);
-  });
-  stmtDriver.finalize();
-
-  // Get driver IDs to insert histories
-  db.all('SELECT id, plate FROM drivers', [], (err, rows) => {
-    if (err) {
-      console.error('Error fetching drivers for history seeding:', err);
-      return;
-    }
-
-    const joaoId = rows.find(r => r.plate === 'ABC-1234').id;
-    const carlosId = rows.find(r => r.plate === 'SUI-0099').id;
-    const anaId = rows.find(r => r.plate === 'XYZ-9876').id;
-
-    // Seeding driver histories
-    const historyStmt = db.prepare(`
-      INSERT INTO driver_history (driver_id, date, score, duration, status, issue)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    // João S. History
-    historyStmt.run(joaoId, "Ontem, 18:30", 99, "15 min", "perfect", null);
-    historyStmt.run(joaoId, "15 Mai, 09:00", 97, "22 min", "perfect", null);
-
-    // Carlos M. History
-    historyStmt.run(carlosId, "Hoje, 08:15", 35, "45 min", "danger", "3 Travagens Bruscas, Excesso de Velocidade");
-    historyStmt.run(carlosId, "Ontem, 22:10", 50, "18 min", "danger", "Curva Perigosa em Alta Velocidade");
-    historyStmt.run(carlosId, "14 Mai, 19:00", 42, "30 min", "danger", "Aceleração Brusca Constante");
-
-    // Ana P. History
-    historyStmt.run(anaId, "Hoje, 12:00", 88, "10 min", "good", null);
-    historyStmt.run(anaId, "Ontem, 14:45", 82, "30 min", "warning", "1 Travagem Brusca Leve");
-
-    historyStmt.finalize();
-
-    // 6. Seed Challenges
-    const challengeStmt = db.prepare(`
-      INSERT INTO campaign_challenges (title, description, points, is_completed, role_restriction)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    challengeStmt.run('Auditor Cidadão', 'Avalie 1 corrida de App (Uber/99) como passageiro hoje.', 150, 0, 'passenger');
-    challengeStmt.run('Modo Foco', 'Faça uma viagem como motorista sem tocar no celular.', 200, 0, 'driver');
-    challengeStmt.run('Maio Amarelo Guardião', 'Mantenha a nota da sua telemetria acima de 95 por 3 corridas.', 500, 0, 'driver');
-    challengeStmt.finalize();
-
-    // 7. Seed Tips
-    const tipStmt = db.prepare(`
-      INSERT INTO campaign_tips (title, subtitle, content, points)
-      VALUES (?, ?, ?, ?)
-    `);
-    tipStmt.run(
-      'Mito vs Fato: Cinto no banco de trás', 
-      'Mito vs Fato', 
-      'Fato: O cinto no banco de trás é obrigatório e vital. Em caso de colisão a 50 km/h, um passageiro sem cinto no banco de trás é projetado para a frente com um impacto equivalente ao peso de um elefante de 3 toneladas, esmagando o condutor.', 
-      50
-    );
-    tipStmt.run(
-      'Riscos da fadiga ao volante', 
-      'Fisiologia da Fadiga', 
-      'Fato: Conduzir com sono ou fadiga severa equivale a conduzir sob o efeito do álcool. Após 19 horas sem dormir, os tempos de reação e reflexos equivalem a uma taxa de alcoolemia de 0,5 g/l. Faça pausas a cada 2 horas.', 
-      100
-    );
-    tipStmt.run(
-      'Distância de reação em pistas molhadas', 
-      'Física da Reação', 
-      'Fato: Em pistas molhadas, a distância de travagem do carro duplica em comparação ao asfalto seco devido à redução dramática do atrito dos pneus. Aumente a distância de segurança para pelo menos 4 segundos.', 
-      80
-    );
-    tipStmt.finalize();
-
-    // 8. Seed Rewards
-    const rewardStmt = db.prepare(`
-      INSERT INTO clube_rewards (title, description, progress, color, completed)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    rewardStmt.run('Desconto Combustível', 'Mantenha Score > 90 por 7 dias para resgatar.', 85, '#F59E0B', 0);
-    rewardStmt.run('Prioridade VIP Apps', 'Corridas 5 segundos antes que outros condutores.', 100, '#10B981', 1);
-    rewardStmt.run('Desconto Lavagem Premium', 'Score de Condução > 95 por 5 corridas consecutivas.', 60, '#6366F1', 0);
-    rewardStmt.finalize();
-
-    console.log('Seed data inserted successfully.');
-    db.close();
-  });
-});
+initDb();

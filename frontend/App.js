@@ -1,438 +1,430 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, Platform, ActivityIndicator, Modal } from 'react-native';
-import { HeartPulse, Car, Users, Award, History, ShieldCheck, MapPin } from 'lucide-react-native';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+  Platform,
+  ActivityIndicator,
+  Modal,
+} from "react-native";
+import {
+  HeartPulse,
+  Car,
+  Users,
+  Award,
+  ShieldCheck,
+  MapPin,
+  User,
+} from "lucide-react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 // Import Views
-import Header from './src/views/components/Header';
-import Notification from './src/views/components/Notification';
-import AuthScreen from './src/views/screens/AuthScreen';
-import MaioAmareloScreen from './src/views/screens/MaioAmareloScreen';
-import DashboardScreen from './src/views/screens/DashboardScreen';
-import AuditoriaScreen from './src/views/screens/AuditoriaScreen';
-import HUDScreen from './src/views/screens/HUDScreen';
-import VantagensScreen from './src/views/screens/VantagensScreen';
-import HistoricoScreen from './src/views/screens/HistoricoScreen';
-import AdminScreen from './src/views/screens/AdminScreen';
+import Header from "./src/views/components/Header";
+import Notification from "./src/views/components/Notification";
+import AuthScreen from "./src/views/screens/AuthScreen";
+import MaioAmareloScreen from "./src/views/screens/MaioAmareloScreen";
+import DashboardScreen from "./src/views/screens/DashboardScreen";
+import AuditoriaScreen from "./src/views/screens/AuditoriaScreen";
+import HUDScreen from "./src/views/screens/HUDScreen";
+import VantagensScreen from "./src/views/screens/VantagensScreen";
+import HistoricoScreen from "./src/views/screens/HistoricoScreen";
+import AdminScreen from "./src/views/screens/AdminScreen";
 
 // Import Controllers & Models
-import { useTripController } from './src/controllers/trip.controller';
-import { useAuditController } from './src/controllers/audit.controller';
-import { useAuthController } from './src/controllers/auth.controller';
-import ApiService from './src/models/api.model';
+import { useTripController } from "./src/controllers/trip.controller";
+import { useAuditController } from "./src/controllers/audit.controller";
+import { useAuthController } from "./src/controllers/auth.controller";
+import ApiService from "./src/models/api.model";
+import getTheme from "./src/theme";
 
 export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const theme = getTheme(isDarkMode);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [notification, setNotification] = useState(null);
-  
-  // Real user profile state
   const [profileData, setProfileData] = useState(null);
 
-  // Sync profile metrics from secure backend API
   const refreshProfile = async () => {
     try {
       const data = await ApiService.fetchSelfProfile();
-      setProfileData(data.profile);
+      setProfileData(data?.profile ?? null);
     } catch (error) {
-      console.warn('Silent profile fetch failed:', error);
-      // Suppress or handle offline state gracefully
+      setProfileData(null);
     }
   };
 
-  // 1. Initialize Authentication controller
   const authController = useAuthController(setNotification, refreshProfile);
+  const tripController = useTripController(
+    soundEnabled,
+    setNotification,
+    refreshProfile,
+    authController.isAuthenticated,
+  );
+  const auditController = useAuditController(
+    soundEnabled,
+    setNotification,
+    refreshProfile,
+  );
 
-  // 2. Initialize secondary trip & audit controllers
-  const tripController = useTripController(soundEnabled, setNotification, refreshProfile, authController.isAuthenticated);
-  const auditController = useAuditController(soundEnabled, setNotification, refreshProfile);
-
-  // 3. Tab State & Auto Tab filter depending on logged-in user role
-  const [activeTab, setActiveTab] = useState('maioAmarelo');
+  const [activeTab, setActiveTab] = useState("maioAmarelo");
 
   useEffect(() => {
     if (authController.isAuthenticated && authController.user) {
-      // Direct passengers away from driver-only driving tabs
-      if (authController.user.role === 'passenger') {
-        setActiveTab('passenger');
-      } else if (authController.user.role === 'admin') {
-        setActiveTab('admin');
+      if (authController.user.role === "passenger") {
+        setActiveTab("passenger");
+      } else if (authController.user.role === "admin") {
+        setActiveTab("admin");
       } else {
-        setActiveTab('maioAmarelo');
+        setActiveTab("maioAmarelo");
       }
     }
   }, [authController.isAuthenticated]);
 
-  // Loading Splash Screen while checking JWT persistence
   if (authController.isLoading) {
     return (
-      <View style={[styles.splashContainer, { backgroundColor: isDarkMode ? '#0F1015' : '#F1F5F9' }]}>
-        <View style={styles.splashBadge}>
-          <ShieldCheck size={50} color="#000000" strokeWidth={2.5} />
+      <SafeAreaProvider>
+        <View
+          style={[styles.splashContainer, { backgroundColor: theme.colors.bg }]}
+        >
+          <View
+            style={[
+              styles.splashBadge,
+              { backgroundColor: theme.colors.primary },
+            ]}
+          >
+            <ShieldCheck
+              size={50}
+              color={theme.colors.onPrimary}
+              strokeWidth={2.5}
+            />
+          </View>
+          <Text style={[styles.splashText, { color: theme.colors.title }]}>
+            A carregar SHIFT...
+          </Text>
+          <ActivityIndicator
+            size="large"
+            color={theme.colors.primary}
+            style={{ marginTop: 12 }}
+          />
         </View>
-        <Text style={[styles.splashText, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-          A carregar SHIFT...
-        </Text>
-        <ActivityIndicator size="large" color="#F59E0B" style={{ marginTop: 12 }} />
-      </View>
+      </SafeAreaProvider>
     );
   }
 
-  // -------------------------------------------------------------
-  // GATED AUTHENTICATION WALL (IF NOT LOGGED IN)
-  // -------------------------------------------------------------
   if (!authController.isAuthenticated) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#0F1015' : '#F1F5F9' }]}>
-        <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-        {/* Floating alerts inside Login page */}
-        <Notification notification={notification} setNotification={setNotification} />
-        
-        <AuthScreen isDarkMode={isDarkMode} controller={authController} />
-
-        {/* 📍 CUSTOM STYLED LOCATION PERMISSION MODAL */}
-        <Modal
-          visible={!!tripController.showPermissionModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => tripController.setShowPermissionModal(false)}
+      <SafeAreaProvider>
+        <SafeAreaView
+          style={[styles.safeArea, { backgroundColor: theme.colors.bg }]}
         >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#171923' : '#FFFFFF', borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}>
-              {/* Styled Pin Icon Ring */}
-              <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}>
-                <MapPin size={30} color="#F59E0B" />
-              </View>
-
-              <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                Permissão de Localização
-              </Text>
-              
-              <Text style={[styles.modalDescription, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
-                O SHIFT necessita de aceder à sua localização para monitorizar a velocidade em tempo real, detetar travagens bruscas, calcular o seu score de condução comunitária e atualizar as condições da pista.
-              </Text>
-
-              {/* Action Buttons */}
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}
-                  onPress={() => tripController.setShowPermissionModal(false)}
-                  activeOpacity={0.7}
+          <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+          <Notification
+            notification={notification}
+            setNotification={setNotification}
+            isDarkMode={isDarkMode}
+          />
+          <AuthScreen isDarkMode={isDarkMode} controller={authController} />
+          <Modal
+            visible={!!tripController.showPermissionModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => tripController.setShowPermissionModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View
+                style={[
+                  styles.modalContainer,
+                  {
+                    backgroundColor: theme.colors.card,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: `${theme.colors.primary}1A` },
+                  ]}
                 >
-                  <Text style={[styles.cancelBtnText, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
-                    Agora Não
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.confirmBtn}
-                  onPress={tripController.requestLocationPermission}
-                  activeOpacity={0.8}
+                  <MapPin size={30} color={theme.colors.primary} />
+                </View>
+                <Text
+                  style={[styles.modalTitle, { color: theme.colors.title }]}
                 >
-                  <Text style={styles.confirmBtnText}>
-                    Permitir Acesso
-                  </Text>
-                </TouchableOpacity>
+                  Localização
+                </Text>
+                <Text
+                  style={[
+                    styles.modalDescription,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  O SHIFT necessita de aceder à sua localização para monitorizar
+                  a velocidade e detetar zonas de risco.
+                </Text>
+                <View style={styles.buttonRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.cancelBtn,
+                      { borderColor: theme.colors.border },
+                    ]}
+                    onPress={() => tripController.setShowPermissionModal(false)}
+                  >
+                    <Text
+                      style={[
+                        styles.cancelBtnText,
+                        { color: theme.colors.muted },
+                      ]}
+                    >
+                      Agora Não
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.confirmBtn,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
+                    onPress={tripController.requestLocationPermission}
+                  >
+                    <Text
+                      style={[
+                        styles.confirmBtnText,
+                        { color: theme.colors.onPrimary },
+                      ]}
+                    >
+                      Permitir
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
-        </Modal>
-      </SafeAreaView>
+          </Modal>
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
-  // Colors based on theme
-  const colors = {
-    bg: isDarkMode ? '#0F1015' : '#F1F5F9',
-    tabBarBg: isDarkMode ? '#0F1015' : '#FFFFFF',
-    border: isDarkMode ? '#222530' : '#E2E8F0',
-    navTextActive: isDarkMode ? '#F59E0B' : '#6366F1',
-    navTextInactive: isDarkMode ? '#475569' : '#94A3B8',
-  };
-
-  // Dynamic Navigation filters based on driver vs passenger roles
-  const isDriver = authController.user && authController.user.role === 'driver';
-  const isAdmin = authController.user && authController.user.role === 'admin';
+  const isDriver = authController.user && authController.user.role === "driver";
+  const isAdmin = authController.user && authController.user.role === "admin";
 
   const NavItem = ({ id, icon: Icon, label }) => {
     const isActive = activeTab === id;
-    const color = isActive ? colors.navTextActive : colors.navTextInactive;
-
+    const color = isActive ? theme.colors.primary : theme.colors.muted;
     return (
-      <TouchableOpacity
-        onPress={() => setActiveTab(id)}
-        style={styles.navItem}
-        activeOpacity={0.7}
-      >
-        <Icon size={18} color={color} />
-        <Text style={[styles.navText, { color }]}>{label}</Text>
+      <TouchableOpacity onPress={() => setActiveTab(id)} style={styles.navItem}>
+        <Icon
+          size={isActive ? 22 : 18}
+          color={color}
+          strokeWidth={isActive ? 2.5 : 2}
+        />
+        <Text
+          style={[
+            styles.navText,
+            { color, fontWeight: isActive ? "900" : "700" },
+          ]}
+        >
+          {label}
+        </Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: isDarkMode ? '#0F1015' : '#FFFFFF' }]}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-
-      {/* Maio Amarelo Campaign Top Banner */}
-      <View style={styles.campaignBanner}>
-        <HeartPulse size={12} color="#451A03" />
-        <Text style={styles.campaignText}>MAIO AMARELO: A PAZ NO TRÂNSITO COMEÇA EM SI</Text>
-      </View>
-
-      {/* Floating Notifications Banner */}
-      <Notification notification={notification} setNotification={setNotification} />
-
-      {/* Premium Settings Header */}
-      <Header
-        isDarkMode={isDarkMode}
-        setIsDarkMode={setIsDarkMode}
-        soundEnabled={soundEnabled}
-        setSoundEnabled={setSoundEnabled}
-      />
-
-      {/* Main Tab View Switcher */}
-      <View style={[styles.mainContent, { backgroundColor: colors.bg }]}>
-        {activeTab === 'maioAmarelo' && (
-          <MaioAmareloScreen isDarkMode={isDarkMode} setActiveTab={setActiveTab} refreshProfile={refreshProfile} />
-        )}
-        {activeTab === 'dashboard' && isDriver && (
-          <DashboardScreen isDarkMode={isDarkMode} controller={tripController} />
-        )}
-        {activeTab === 'passenger' && (
-          <AuditoriaScreen isDarkMode={isDarkMode} controller={auditController} />
-        )}
-        {activeTab === 'hud' && isDriver && (
-          <HUDScreen
-            isDriving={tripController.isDriving}
-            speed={tripController.speed}
-            score={tripController.score}
-            distance={tripController.distance}
-          />
-        )}
-        {activeTab === 'challenges' && (
-          <VantagensScreen isDarkMode={isDarkMode} score={tripController.score} profileData={profileData} />
-        )}
-        {activeTab === 'history' && (
-          <HistoricoScreen 
-            isDarkMode={isDarkMode} 
-            profileData={profileData} 
-            handleLogout={authController.handleLogout} // Injecting logout action into Profile
-          />
-        )}
-        {activeTab === 'admin' && isAdmin && (
-          <AdminScreen isDarkMode={isDarkMode} />
-        )}
-      </View>
-
-      {/* Floating Dynamic Bottom Tab Bar Menu */}
-      <View style={[styles.tabBar, { backgroundColor: colors.tabBarBg, borderTopColor: colors.border }]}>
-        {isAdmin ? (
-          <>
-            <NavItem id="admin" icon={ShieldCheck} label="Administrar" />
-            <NavItem id="history" icon={History} label="Histórico" />
-          </>
-        ) : (
-          <>
-            <NavItem id="maioAmarelo" icon={HeartPulse} label="Campanha" />
-            
-            {/* Driver-Specific Tabs */}
-            {isDriver && <NavItem id="dashboard" icon={Car} label="Conduzir" />}
-            {isDriver && tripController.isDriving && <NavItem id="hud" icon={Car} label="Modo HUD" />}
-            
-            {/* Passenger-Specific/General Tabs */}
-            <NavItem id="passenger" icon={Users} label="Auditoria" />
-            <NavItem id="challenges" icon={Award} label="Vantagens" />
-            <NavItem id="history" icon={History} label="Histórico" />
-          </>
-        )}
-      </View>
-
-      {/* 📍 CUSTOM STYLED LOCATION PERMISSION MODAL */}
-      <Modal
-        visible={!!tripController.showPermissionModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => tripController.setShowPermissionModal(false)}
+    <SafeAreaProvider>
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: theme.colors.bg }]}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#171923' : '#FFFFFF', borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}>
-            {/* Styled Pin Icon Ring */}
-            <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : 'rgba(245, 158, 11, 0.1)' }]}>
-              <MapPin size={30} color="#F59E0B" />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-              Permissão de Localização
-            </Text>
-            
-            <Text style={[styles.modalDescription, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
-              O SHIFT necessita de aceder à sua localização para monitorizar a velocidade em tempo real, detetar travagens bruscas, calcular o seu score de condução comunitária e atualizar as condições da pista.
-            </Text>
-
-            {/* Action Buttons */}
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.cancelBtn, { borderColor: isDarkMode ? '#222530' : '#E2E8F0' }]}
-                onPress={() => tripController.setShowPermissionModal(false)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.cancelBtnText, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
-                  Agora Não
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.confirmBtn}
-                onPress={tripController.requestLocationPermission}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.confirmBtnText}>
-                  Permitir Acesso
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
+        <View
+          style={[
+            styles.campaignBanner,
+            { backgroundColor: theme.colors.primary },
+          ]}
+        >
+          <HeartPulse size={12} color={theme.colors.onPrimary} />
+          <Text
+            style={[styles.campaignText, { color: theme.colors.onPrimary }]}
+          >
+            MAIO AMARELO: CONDUZA COM RESPONSABILIDADE
+          </Text>
         </View>
-      </Modal>
-    </SafeAreaView>
+        <Notification
+          notification={notification}
+          setNotification={setNotification}
+          isDarkMode={isDarkMode}
+        />
+        <Header
+          isDarkMode={isDarkMode}
+          setIsDarkMode={setIsDarkMode}
+          soundEnabled={soundEnabled}
+          setSoundEnabled={setSoundEnabled}
+        />
+        <View
+          style={[styles.mainContent, { backgroundColor: theme.colors.bg }]}
+        >
+          {activeTab === "maioAmarelo" && (
+            <MaioAmareloScreen
+              isDarkMode={isDarkMode}
+              setActiveTab={setActiveTab}
+              refreshProfile={refreshProfile}
+            />
+          )}
+          {activeTab === "dashboard" && isDriver && (
+            <DashboardScreen
+              isDarkMode={isDarkMode}
+              controller={tripController}
+            />
+          )}
+          {activeTab === "passenger" && (
+            <AuditoriaScreen
+              isDarkMode={isDarkMode}
+              controller={auditController}
+            />
+          )}
+          {activeTab === "hud" && isDriver && (
+            <HUDScreen
+              isDriving={tripController.isDriving}
+              speed={tripController.speed}
+              score={tripController.score}
+              distance={tripController.distance}
+            />
+          )}
+          {activeTab === "challenges" && (
+            <VantagensScreen
+              isDarkMode={isDarkMode}
+              score={tripController.score}
+              profileData={profileData}
+            />
+          )}
+          {activeTab === "history" && (
+            <HistoricoScreen
+              isDarkMode={isDarkMode}
+              profileData={profileData}
+              refreshProfile={refreshProfile}
+              handleLogout={authController.handleLogout}
+            />
+          )}
+          {activeTab === "admin" && isAdmin && (
+            <AdminScreen isDarkMode={isDarkMode} />
+          )}
+        </View>
+        <View
+          style={[
+            styles.tabBar,
+            {
+              backgroundColor: theme.colors.card,
+              borderTopColor: theme.colors.border,
+            },
+          ]}
+        >
+          {isAdmin ? (
+            <>
+              <NavItem id="admin" icon={ShieldCheck} label="Gestão" />
+              <NavItem id="history" icon={User} label="Perfil" />
+            </>
+          ) : (
+            <>
+              <NavItem id="maioAmarelo" icon={HeartPulse} label="Missões" />
+              {isDriver && (
+                <NavItem id="dashboard" icon={Car} label="Volante" />
+              )}
+              {isDriver && tripController.isDriving && (
+                <NavItem id="hud" icon={Car} label="HUD" />
+              )}
+              <NavItem id="passenger" icon={Users} label="Auditar" />
+              <NavItem id="challenges" icon={Award} label="Clube" />
+              <NavItem id="history" icon={User} label="Perfil" />
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-  },
+  safeArea: { flex: 1 },
+  mainContent: { flex: 1 },
   splashContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 20,
   },
   splashBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: '#F59E0B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    width: 100,
+    height: 100,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 10,
   },
-  splashText: {
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
+  splashText: { fontSize: 18, fontWeight: "900", letterSpacing: 1 },
   campaignBanner: {
-    backgroundColor: '#F59E0B',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 6,
-    gap: 6,
-    zIndex: 10,
+    gap: 8,
+    height: 28,
   },
-  campaignText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#351603',
-    letterSpacing: 0.5,
-  },
-  mainContent: {
-    flex: 1,
-  },
+  campaignText: { fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   tabBar: {
-    flexDirection: 'row',
-    height: 56,
+    flexDirection: "row",
+    height: 65,
     borderTopWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingBottom: Platform.OS === 'ios' ? 12 : 0,
+    paddingBottom: Platform.OS === "ios" ? 20 : 10,
+    paddingTop: 10,
   },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    height: '100%',
-  },
-  navText: {
-    fontSize: 8,
-    fontWeight: '800',
-  },
+  navItem: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
+  navText: { fontSize: 9, letterSpacing: 0.2 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 24,
   },
   modalContainer: {
-    width: '100%',
-    maxWidth: 340,
+    width: "100%",
     borderRadius: 28,
     borderWidth: 1,
     padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 8,
+    gap: 16,
   },
   iconContainer: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
   },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
+  modalTitle: { fontSize: 20, fontWeight: "900", textAlign: "center" },
   modalDescription: {
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 18,
-    textAlign: 'center',
-    marginBottom: 24,
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 20,
   },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
+  buttonRow: { flexDirection: "row", gap: 12, marginTop: 8 },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    height: 48,
+    borderRadius: 14,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  cancelBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
+  cancelBtnText: { fontSize: 14, fontWeight: "800" },
   confirmBtn: {
-    flex: 1,
-    backgroundColor: '#F59E0B',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flex: 2,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  confirmBtnText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#351603',
-  },
+  confirmBtnText: { fontSize: 14, fontWeight: "900" },
 });

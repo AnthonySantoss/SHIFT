@@ -1,61 +1,63 @@
-const { queryRun, queryAll } = require('../config/db');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
 
-class AuditModel {
-  static async create({ passengerId, driverPlate, roadContext, weatherContext, score, ratingStars, positiveActions = [], infractions = [], feedback = '' }) {
-    const sql = `
-      INSERT INTO audits (passenger_id, driver_plate, road_context, weather_context, score, rating_stars, positive_actions, infractions, feedback)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    const result = await queryRun(sql, [
-      passengerId || null,
-      driverPlate.toUpperCase().trim(),
-      roadContext,
-      weatherContext,
-      score,
-      ratingStars,
-      JSON.stringify(positiveActions),
-      JSON.stringify(infractions),
-      feedback
-    ]);
-    return result.id;
+const Audit = sequelize.define('Audit', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  passenger_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+  },
+  driver_plate: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    set(value) {
+      this.setDataValue('driver_plate', value.toUpperCase().trim());
+    }
+  },
+  road_context: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  weather_context: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  score: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  rating_stars: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  positive_actions: {
+    type: DataTypes.JSON,
+    defaultValue: [],
+  },
+  infractions: {
+    type: DataTypes.JSON,
+    defaultValue: [],
+  },
+  feedback: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  latitude: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+  },
+  longitude: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
   }
+}, {
+  tableName: 'audits',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+});
 
-  static async getRecentByPlate(plate) {
-    const sql = `SELECT * FROM audits WHERE UPPER(driver_plate) = UPPER(?) ORDER BY created_at DESC LIMIT 5`;
-    const rows = await queryAll(sql, [plate.trim()]);
-    return rows.map(r => {
-      try {
-        r.positive_actions = JSON.parse(r.positive_actions);
-      } catch (e) {
-        r.positive_actions = [];
-      }
-      try {
-        r.infractions = JSON.parse(r.infractions);
-      } catch (e) {
-        r.infractions = [];
-      }
-      return r;
-    });
-  }
-
-  static async getRecentByPassenger(passengerId) {
-    const sql = `SELECT * FROM audits WHERE passenger_id = ? ORDER BY created_at DESC LIMIT 10`;
-    const rows = await queryAll(sql, [passengerId]);
-    return rows.map(r => {
-      try {
-        r.positive_actions = JSON.parse(r.positive_actions);
-      } catch (e) {
-        r.positive_actions = [];
-      }
-      try {
-        r.infractions = JSON.parse(r.infractions);
-      } catch (e) {
-        r.infractions = [];
-      }
-      return r;
-    });
-  }
-}
-
-module.exports = AuditModel;
-
+module.exports = Audit;

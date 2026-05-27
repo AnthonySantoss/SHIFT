@@ -1,68 +1,96 @@
-const { queryAll, queryRun } = require('../config/db');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db');
 
-class CampaignModel {
-  static async getChallenges(role) {
-    if (role === 'admin') {
-      const sql = `SELECT * FROM campaign_challenges ORDER BY id ASC`;
-      return await queryAll(sql);
-    }
-    // Returns challenges restricting by role or applicable to all
-    const sql = `
-      SELECT * FROM campaign_challenges 
-      WHERE role_restriction = ? OR role_restriction = 'all'
-      ORDER BY id ASC
-    `;
-    return await queryAll(sql, [role]);
+const Challenge = sequelize.define('Challenge', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  points: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  is_completed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  role_restriction: {
+    type: DataTypes.ENUM('driver', 'passenger', 'all'),
+    allowNull: false,
   }
+}, {
+  tableName: 'campaign_challenges',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+});
 
-  static async getTips() {
-    const sql = `SELECT * FROM campaign_tips ORDER BY id ASC`;
-    return await queryAll(sql);
+const Tip = sequelize.define('Tip', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  subtitle: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  points: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
   }
+}, {
+  tableName: 'campaign_tips',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+});
 
-  static async getRewards() {
-    const sql = `SELECT * FROM clube_rewards ORDER BY id ASC`;
-    return await queryAll(sql);
+const Reward = sequelize.define('Reward', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  progress: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  color: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  completed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
   }
+}, {
+  tableName: 'clube_rewards',
+  createdAt: 'created_at',
+  updatedAt: 'updated_at',
+});
 
-  static async createTip(title, subtitle, content, points) {
-    const sql = `
-      INSERT INTO campaign_tips (title, subtitle, content, points)
-      VALUES (?, ?, ?, ?)
-    `;
-    return await queryRun(sql, [title, subtitle, content, parseInt(points)]);
-  }
-
-  static async deleteTip(id) {
-    const sql = `DELETE FROM campaign_tips WHERE id = ?`;
-    return await queryRun(sql, [id]);
-  }
-
-  static async createChallenge(title, description, points, role_restriction) {
-    const sql = `
-      INSERT INTO campaign_challenges (title, description, points, role_restriction)
-      VALUES (?, ?, ?, ?)
-    `;
-    return await queryRun(sql, [title, description, points, role_restriction]);
-  }
-
-  static async deleteChallenge(id) {
-    const sql = `DELETE FROM campaign_challenges WHERE id = ?`;
-    return await queryRun(sql, [id]);
-  }
-
-  static async createReward(title, description, progress, color) {
-    const sql = `
-      INSERT INTO clube_rewards (title, description, progress, color)
-      VALUES (?, ?, ?, ?)
-    `;
-    return await queryRun(sql, [title, description, progress, color]);
-  }
-
-  static async deleteReward(id) {
-    const sql = `DELETE FROM clube_rewards WHERE id = ?`;
-    return await queryRun(sql, [id]);
-  }
-}
-
-module.exports = CampaignModel;
+module.exports = { Challenge, Tip, Reward };

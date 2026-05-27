@@ -1,30 +1,26 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
-import { ShieldCheck, Mail, Lock, User, Car, ArrowRight } from 'lucide-react-native';
+import { ShieldCheck, Mail, Lock, User, Car, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
+import getTheme from '../../theme';
 
 export default function AuthScreen({ isDarkMode, controller }) {
+  const theme = getTheme(isDarkMode);
   const { handleLogin, handleRegister, isLoading, authError, setAuthError } = controller;
 
   // Active form state
   const [isLoginTab, setIsLoginTab] = useState(true);
   const [role, setRole] = useState('driver'); // 'driver' or 'passenger'
+  const [showPassword, setShowPassword] = useState(false);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [plate, setPlate] = useState('');
 
-  // Colors
-  const colors = {
-    bg: isDarkMode ? '#0F1015' : '#F1F5F9',
-    cardBg: isDarkMode ? '#171923' : '#FFFFFF',
-    border: isDarkMode ? '#222530' : '#E2E8F0',
-    title: isDarkMode ? '#FFFFFF' : '#0F172A',
-    text: isDarkMode ? '#94A3B8' : '#475569',
-    inputBg: isDarkMode ? '#0B0C10' : '#F8FAFC',
-    yellow: '#F59E0B',
-    yellowDark: '#D97706',
-  };
+  // Refs for keyboard navigation
+  const emailRef = React.useRef(null);
+  const passwordRef = React.useRef(null);
+  const plateRef = React.useRef(null);
 
   const validateEmail = (val) => {
     const reg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -57,7 +53,7 @@ export default function AuthScreen({ isDarkMode, controller }) {
         return;
       }
       if (role === 'driver' && !plate) {
-        setAuthError('A matrícula do veículo é obrigatória para condutores.');
+        setAuthError('A placa do veículo é obrigatória para condutores.');
         return;
       }
       await handleRegister({ name, email, password, role, plate });
@@ -67,33 +63,37 @@ export default function AuthScreen({ isDarkMode, controller }) {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: colors.bg }]}
+      style={[styles.container, { backgroundColor: theme.colors.bg }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* LOGO SHIELD DECORATION */}
-        <View style={styles.logoSection}>
-          <View style={styles.logoBadge}>
-            <ShieldCheck size={40} color="#000000" strokeWidth={2.5} />
+        <View style={styles.logoSection} accessibilityRole="header">
+          <View style={[styles.logoBadge, { backgroundColor: theme.colors.primary }, theme.shadows.medium]}>
+            <ShieldCheck size={40} color={theme.colors.onPrimary} strokeWidth={2.5} />
           </View>
-          <Text style={[styles.logoText, { color: colors.title }]}>
-            SHIFT<Text style={{ color: colors.yellow }}> PRO</Text>
+          <Text style={[styles.logoText, { color: theme.colors.title }]}>
+            SHIFT<Text style={{ color: theme.colors.primary }}> PRO</Text>
           </Text>
-          <Text style={[styles.tagline, { color: colors.text }]}>
+          <Text style={[styles.tagline, { color: theme.colors.text }]}>
             A Paz no Trânsito Começa Conosco
           </Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }, theme.shadows.soft]}>
           {/* ACTOR SELECTOR */}
-          <View style={[styles.actorTabContainer, { backgroundColor: colors.bg }]}>
+          <View style={[styles.actorTabContainer, { backgroundColor: theme.colors.bg }]} accessibilityRole="tablist">
             <TouchableOpacity
               onPress={() => {
                 setRole('driver');
                 setAuthError(null);
               }}
-              style={[styles.actorTab, role === 'driver' && styles.actorTabActive]}
+              style={[styles.actorTab, role === 'driver' && { backgroundColor: theme.colors.primary }]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: role === 'driver' }}
+              accessibilityLabel="Perfil Motorista"
+              accessibilityHint="Seleciona o modo motorista para login ou registo"
             >
-              <Text style={[styles.actorTabText, role === 'driver' && styles.actorTabTextActive]}>
+              <Text style={[styles.actorTabText, role === 'driver' && { color: theme.colors.onPrimary }]}>
                 MOTORISTA
               </Text>
             </TouchableOpacity>
@@ -102,40 +102,54 @@ export default function AuthScreen({ isDarkMode, controller }) {
                 setRole('passenger');
                 setAuthError(null);
               }}
-              style={[styles.actorTab, role === 'passenger' && styles.actorTabActive]}
+              style={[styles.actorTab, role === 'passenger' && { backgroundColor: theme.colors.primary }]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: role === 'passenger' }}
+              accessibilityLabel="Perfil Passageiro"
+              accessibilityHint="Seleciona o modo passageiro para login ou registo"
             >
-              <Text style={[styles.actorTabText, role === 'passenger' && styles.actorTabTextActive]}>
+              <Text style={[styles.actorTabText, role === 'passenger' && { color: theme.colors.onPrimary }]}>
                 PASSAGEIRO
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* TAB SWITCHER (LOGIN / SIGNUP) */}
-          <View style={styles.authTabContainer}>
+          <View style={styles.authTabContainer} accessibilityRole="tablist">
             <TouchableOpacity
               onPress={() => {
                 setIsLoginTab(true);
                 setAuthError(null);
               }}
-              style={[styles.authTab, isLoginTab && [styles.authTabActive, { borderBottomColor: colors.yellow }]]}
+              style={[styles.authTab, isLoginTab && { borderBottomColor: theme.colors.primary }]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isLoginTab }}
+              accessibilityLabel="Aba Entrar"
             >
-              <Text style={[styles.authTabText, isLoginTab && { color: colors.title }]}>Entrar</Text>
+              <Text style={[styles.authTabText, isLoginTab && { color: theme.colors.title }]}>Entrar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
                 setIsLoginTab(false);
                 setAuthError(null);
               }}
-              style={[styles.authTab, !isLoginTab && [styles.authTabActive, { borderBottomColor: colors.yellow }]]}
+              style={[styles.authTab, !isLoginTab && { borderBottomColor: theme.colors.primary }]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: !isLoginTab }}
+              accessibilityLabel="Aba Criar Conta"
             >
-              <Text style={[styles.authTabText, !isLoginTab && { color: colors.title }]}>Criar Conta</Text>
+              <Text style={[styles.authTabText, !isLoginTab && { color: theme.colors.title }]}>Criar Conta</Text>
             </TouchableOpacity>
           </View>
 
           {/* ERRORS BANNER */}
           {authError && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{authError}</Text>
+            <View 
+              style={[styles.errorContainer, { backgroundColor: `${theme.colors.danger}1A`, borderColor: `${theme.colors.danger}33` }]} 
+              accessibilityLiveRegion="assertive"
+              accessibilityRole="alert"
+            >
+              <Text style={[styles.errorText, { color: theme.colors.danger }]}>{authError}</Text>
             </View>
           )}
 
@@ -144,57 +158,91 @@ export default function AuthScreen({ isDarkMode, controller }) {
             {/* NAME FIELD (REGISTER ONLY) */}
             {!isLoginTab && (
               <View style={styles.inputWrapper}>
-                <User size={16} color={colors.text} style={styles.inputIcon} />
+                <User size={16} color={theme.colors.text} style={styles.inputIcon} />
                 <TextInput
                   value={name}
                   onChangeText={setName}
                   placeholder="Nome Completo"
-                  placeholderTextColor={isDarkMode ? '#475569' : '#94A3B8'}
-                  style={[styles.input, { color: colors.title, backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                  placeholderTextColor={theme.colors.muted}
+                  style={[styles.input, { color: theme.colors.title, backgroundColor: theme.colors.input, borderColor: theme.colors.border }]}
+                  accessibilityLabel="Campo de Nome Completo"
+                  returnKeyType="next"
+                  onSubmitEditing={() => emailRef.current?.focus()}
                 />
               </View>
             )}
 
             {/* EMAIL FIELD */}
             <View style={styles.inputWrapper}>
-              <Mail size={16} color={colors.text} style={styles.inputIcon} />
+              <Mail size={16} color={theme.colors.text} style={styles.inputIcon} />
               <TextInput
+                ref={emailRef}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="E-mail"
-                placeholderTextColor={isDarkMode ? '#475569' : '#94A3B8'}
+                placeholderTextColor={theme.colors.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                style={[styles.input, { color: colors.title, backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                style={[styles.input, { color: theme.colors.title, backgroundColor: theme.colors.input, borderColor: theme.colors.border }]}
+                accessibilityLabel="Campo de E-mail"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
               />
             </View>
 
             {/* PASSWORD FIELD */}
             <View style={styles.inputWrapper}>
-              <Lock size={16} color={colors.text} style={styles.inputIcon} />
+              <Lock size={16} color={theme.colors.text} style={styles.inputIcon} />
               <TextInput
+                ref={passwordRef}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Senha"
-                placeholderTextColor={isDarkMode ? '#475569' : '#94A3B8'}
-                secureTextEntry
+                placeholderTextColor={theme.colors.muted}
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                style={[styles.input, { color: colors.title, backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                style={[styles.input, { color: theme.colors.title, backgroundColor: theme.colors.input, borderColor: theme.colors.border, paddingRight: 44 }]}
+                accessibilityLabel="Campo de Senha"
+                returnKeyType={!isLoginTab && role === 'driver' ? "next" : "done"}
+                onSubmitEditing={() => {
+                  if (!isLoginTab && role === 'driver') {
+                    plateRef.current?.focus();
+                  } else {
+                    handleSubmit();
+                  }
+                }}
               />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeBtn}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? "Esconder senha" : "Mostrar senha"}
+                accessibilityHint="Alterna a visibilidade dos caracteres da senha"
+              >
+                {showPassword ? (
+                  <EyeOff size={20} color={theme.colors.text} />
+                ) : (
+                  <Eye size={20} color={theme.colors.text} />
+                )}
+              </TouchableOpacity>
             </View>
 
             {/* VEHICLE PLATE FIELD (DRIVER & REGISTER ONLY) */}
             {!isLoginTab && role === 'driver' && (
               <View style={styles.inputWrapper}>
-                <Car size={16} color={colors.text} style={styles.inputIcon} />
+                <Car size={16} color={theme.colors.text} style={styles.inputIcon} />
                 <TextInput
+                  ref={plateRef}
                   value={plate}
                   onChangeText={(text) => setPlate(text.toUpperCase())}
-                  placeholder="Matrícula do Veículo (Ex: ABC-1234)"
-                  placeholderTextColor={isDarkMode ? '#475569' : '#94A3B8'}
+                  placeholder="Placa do Veículo (Ex: ABC1D23)"
+                  placeholderTextColor={theme.colors.muted}
                   maxLength={8}
                   autoCapitalize="characters"
-                  style={[styles.input, { color: colors.title, backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                  style={[styles.input, { color: theme.colors.title, backgroundColor: theme.colors.input, borderColor: theme.colors.border }]}
+                  accessibilityLabel="Campo de Matrícula do Veículo"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmit}
                 />
               </View>
             )}
@@ -202,18 +250,21 @@ export default function AuthScreen({ isDarkMode, controller }) {
             {/* SUBMIT BUTTON */}
             <TouchableOpacity
               onPress={handleSubmit}
-              style={[styles.submitBtn, { backgroundColor: colors.yellow }]}
+              style={[styles.submitBtn, { backgroundColor: theme.colors.primary }, theme.shadows.medium]}
               disabled={isLoading}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={isLoginTab ? 'Botão de Entrar' : 'Botão de Criar Conta'}
+              accessibilityState={{ disabled: isLoading }}
             >
               {isLoading ? (
-                <ActivityIndicator size="small" color="#000000" />
+                <ActivityIndicator size="small" color={theme.colors.onPrimary} />
               ) : (
                 <>
-                  <Text style={styles.submitBtnText}>
+                  <Text style={[styles.submitBtnText, { color: theme.colors.onPrimary }]}>
                     {isLoginTab ? 'Entrar no SHIFT' : 'Registar e Iniciar'}
                   </Text>
-                  <ArrowRight size={16} color="#000000" />
+                  <ArrowRight size={16} color={theme.colors.onPrimary} />
                 </>
               )}
             </TouchableOpacity>
@@ -221,10 +272,10 @@ export default function AuthScreen({ isDarkMode, controller }) {
         </View>
 
         {/* DEMO ACCOUNTS HELPER */}
-        <View style={styles.demoHelperCard}>
-          <Text style={[styles.demoTitle, { color: colors.title }]}>Contas Semente de Teste:</Text>
-          <Text style={[styles.demoRow, { color: colors.text }]}>🚗 **Motorista**: `joao@shift.com` | `123456` (Placa: XYZ-1992)</Text>
-          <Text style={[styles.demoRow, { color: colors.text }]}>👥 **Passageiro**: `ana@shift.com` | `123456` (Foca em Auditorias)</Text>
+        <View style={[styles.demoHelperCard, { backgroundColor: `${theme.colors.text}0D` }]} accessibilityLabel="Ajuda para contas de teste">
+          <Text style={[styles.demoTitle, { color: theme.colors.title }]}>Contas Semente de Teste:</Text>
+          <Text style={[styles.demoRow, { color: theme.colors.text }]}>🚗 **Motorista**: `joao@shift.com` | `123456`</Text>
+          <Text style={[styles.demoRow, { color: theme.colors.text }]}>👥 **Passageiro**: `ana@shift.com` | `123456`</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -249,14 +300,8 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 20,
-    backgroundColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
     marginBottom: 14,
   },
   logoText: {
@@ -276,11 +321,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     gap: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 4,
   },
   actorTabContainer: {
     flexDirection: 'row',
@@ -293,18 +333,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
-  },
-  actorTabActive: {
-    backgroundColor: '#F59E0B',
+    minHeight: 44, // Minimum touch target height
   },
   actorTabText: {
     fontSize: 9.5,
     fontWeight: '900',
-    color: '#94A3B8',
     letterSpacing: 0.5,
-  },
-  actorTabTextActive: {
-    color: '#000000',
   },
   authTabContainer: {
     flexDirection: 'row',
@@ -317,9 +351,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
-  },
-  authTabActive: {
-    // Dynamically applied
+    minHeight: 44, // Minimum touch target height
   },
   authTabText: {
     fontSize: 13,
@@ -327,14 +359,11 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   errorContainer: {
-    backgroundColor: '#FFF5F5',
-    borderColor: '#FEE2E2',
     borderWidth: 1,
     padding: 10,
     borderRadius: 10,
   },
   errorText: {
-    color: '#EF4444',
     fontSize: 10.5,
     fontWeight: '700',
     textAlign: 'center',
@@ -354,7 +383,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 46,
+    height: 48, // Improved height for touch target
     borderWidth: 1,
     borderRadius: 12,
     paddingLeft: 38,
@@ -362,27 +391,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  eyeBtn: {
+    position: 'absolute',
+    right: 12,
+    padding: 8,
+    zIndex: 1,
+  },
   submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 46,
+    height: 50, // Improved height for touch target
     borderRadius: 12,
     gap: 8,
     marginTop: 6,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
   },
   submitBtnText: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#000000',
   },
   demoHelperCard: {
-    backgroundColor: 'rgba(148, 163, 184, 0.05)',
     borderRadius: 14,
     padding: 12,
     gap: 4,

@@ -16,6 +16,7 @@ router.post('/auth/login', AuthController.login);
 
 // Public lookup endpoints
 router.get('/drivers/search', DriverController.searchDriver);
+router.get('/drivers/leaderboard', DriverController.getLeaderboard);
 
 // Protected endpoints (Requires Authorization Token)
 router.get('/drivers/self', authMiddleware, DriverController.getSelfProfile);
@@ -38,5 +39,8 @@ router.post('/admin/rewards', authMiddleware, adminMiddleware, AdminController.c
 router.delete('/admin/rewards/:id', authMiddleware, adminMiddleware, AdminController.deleteReward);
 router.post('/admin/tips', authMiddleware, adminMiddleware, AdminController.createTip);
 router.delete('/admin/tips/:id', authMiddleware, adminMiddleware, AdminController.deleteTip);
+
+// Hotspots & Safety Zones
+router.get('/hotspots', AuditController.getHotspots);
 
 module.exports = router;

@@ -1,33 +1,26 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ShieldCheck, Sun, Moon, Volume2, VolumeX } from 'lucide-react-native';
+import getTheme from '../../theme';
 
 export default function Header({ isDarkMode, setIsDarkMode, soundEnabled, setSoundEnabled }) {
-  // Theme-specific colors
-  const colors = {
-    bg: isDarkMode ? '#0F1015' : '#FFFFFF',
-    border: isDarkMode ? '#222530' : '#E2E8F0',
-    title: isDarkMode ? '#FFFFFF' : '#0F172A',
-    subtitle: isDarkMode ? '#94A3B8' : '#64748B',
-    btnBg: isDarkMode ? 'rgba(255,255,255,0.05)' : '#F8FAFC',
-    btnBorder: isDarkMode ? '#222530' : '#E2E8F0',
-  };
+  const theme = getTheme(isDarkMode);
 
   return (
-    <View style={[styles.header, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
+    <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
       <View style={styles.brandContainer}>
         {/* Shield Icon in Gradient-like styling */}
-        <View style={styles.logoBadge}>
-          <ShieldCheck size={20} color="#000000" strokeWidth={2.5} />
+        <View style={[styles.logoBadge, { backgroundColor: theme.colors.primary }, theme.shadows.soft]}>
+          <ShieldCheck size={20} color={theme.colors.black} strokeWidth={2.5} />
         </View>
         <View style={styles.brandTextContainer}>
           <View style={styles.titleRow}>
-            <Text style={[styles.logoText, { color: colors.title }]}>SHIFT</Text>
-            <View style={styles.proBadge}>
-              <Text style={styles.proText}>PRO</Text>
+            <Text style={[styles.logoText, { color: theme.colors.title }]}>SHIFT</Text>
+            <View style={[styles.proBadge, { backgroundColor: `${theme.colors.primary}26` }]}>
+              <Text style={[styles.proText, { color: theme.colors.primary }]}>PRO</Text>
             </View>
           </View>
-          <Text style={[styles.subtitleText, { color: colors.subtitle }]}>MOBILIDADE INTELIGENTE</Text>
+          <Text style={[styles.subtitleText, { color: theme.colors.muted }]}>MOBILIDADE INTELIGENTE</Text>
         </View>
       </View>
 
@@ -35,26 +28,26 @@ export default function Header({ isDarkMode, setIsDarkMode, soundEnabled, setSou
         {/* Theme Switcher Button */}
         <TouchableOpacity
           onPress={() => setIsDarkMode(!isDarkMode)}
-          style={[styles.actionButton, { backgroundColor: colors.btnBg, borderColor: colors.btnBorder }]}
+          style={[styles.actionButton, { backgroundColor: theme.colors.input, borderColor: theme.colors.border }]}
           activeOpacity={0.7}
         >
           {isDarkMode ? (
-            <Sun size={18} color="#F59E0B" />
+            <Sun size={18} color={theme.colors.primary} />
           ) : (
-            <Moon size={18} color="#475569" />
+            <Moon size={18} color={theme.colors.text} />
           )}
         </TouchableOpacity>
 
         {/* Sound Switcher Button */}
         <TouchableOpacity
           onPress={() => setSoundEnabled(!soundEnabled)}
-          style={[styles.actionButton, { backgroundColor: colors.btnBg, borderColor: colors.btnBorder }]}
+          style={[styles.actionButton, { backgroundColor: theme.colors.input, borderColor: theme.colors.border }]}
           activeOpacity={0.7}
         >
           {soundEnabled ? (
-            <Volume2 size={18} color={isDarkMode ? '#F59E0B' : '#6366F1'} />
+            <Volume2 size={18} color={isDarkMode ? theme.colors.primary : theme.colors.primary} />
           ) : (
-            <VolumeX size={18} color={isDarkMode ? '#475569' : '#94A3B8'} />
+            <VolumeX size={18} color={theme.colors.muted} />
           )}
         </TouchableOpacity>
       </View>
@@ -81,14 +74,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 3,
   },
   brandTextContainer: {
     justifyContent: 'center',
@@ -104,7 +91,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   proBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 4,
@@ -112,7 +98,6 @@ const styles = StyleSheet.create({
   proText: {
     fontSize: 8,
     fontWeight: '900',
-    color: '#D97706',
   },
   subtitleText: {
     fontSize: 8,

@@ -1,10 +1,20 @@
-const TripModel = require('../models/trip.model');
-const DriverModel = require('../models/driver.model');
+const { Trip, Driver } = require('../models');
+const { awardBadges } = require('../utils/badgeHelper');
+const { tripSchema } = require('../utils/validation');
 
 class TripController {
   static async saveTrip(req, res) {
     try {
-      const { score, speedAvg, fatigueMax, distance, durationSeconds } = req.body;
+      // 1. Validate Schema
+      const validation = tripSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: 'Dados de telemetria inválidos.', 
+          details: validation.error.format() 
+        });
+      }
+
+      const { score, speedAvg, fatigueMax, distance, durationSeconds, latitude, longitude } = validation.data;
       const selfPlate = req.user.plate;
       const selfId = req.user.id;
 
@@ -12,42 +22,43 @@ class TripController {
         return res.status(400).json({ error: 'Nenhum veículo registado para este motorista.' });
       }
 
-      const tripId = await TripModel.create({
-        driverId: selfId,
-        driverPlate: selfPlate,
+      const trip = await Trip.create({
+        driver_id: selfId,
+        driver_plate: selfPlate,
         score: score !== undefined ? score : 90,
-        speedAvg: speedAvg || 0,
-        fatigueMax: fatigueMax || 0,
+        speed_avg: speedAvg || 0,
+        fatigue_max: fatigueMax || 0,
         distance: distance || 0,
-        durationSeconds: durationSeconds || 0
+        duration_seconds: durationSeconds || 0,
+        latitude,
+        longitude
       });
 
       // Update the logged-in driver's general statistics: increment trip count and average out the score
-      const driver = await DriverModel.findByPlate(selfPlate);
+      const driver = await Driver.findOne({ where: { plate: selfPlate } });
       if (driver) {
         // Average score update
-        const updatedTrips = driver.trips + 1;
-        const updatedScore = Math.max(0, Math.min(100, Math.round((driver.score * driver.trips + score) / updatedTrips)));
+        const updatedTripsCount = driver.trips + 1;
+        const currentScore = score !== undefined ? score : 90;
+        const updatedScore = Math.max(0, Math.min(100, Math.round((driver.score * driver.trips + currentScore) / updatedTripsCount)));
+        
         let updatedStatus = 'good';
         if (updatedScore > 90) updatedStatus = 'excellent';
         else if (updatedScore < 60) updatedStatus = 'danger';
 
-        const sqlite3 = require('sqlite3').verbose();
-        const path = require('path');
-        const dbPath = path.join(__dirname, '..', 'database', 'db.sqlite');
-        const db = new sqlite3.Database(dbPath);
-        db.run(
-          `UPDATE drivers SET trips = ?, score = ?, status = ? WHERE id = ?`,
-          [updatedTrips, updatedScore, updatedStatus, driver.id],
-          function(err) {
-            db.close();
-          }
-        );
+        const updatedBadges = awardBadges(driver, { score: currentScore, distance });
+
+        await driver.update({
+          trips: updatedTripsCount,
+          score: updatedScore,
+          status: updatedStatus,
+          badges: updatedBadges
+        });
       }
 
       return res.status(201).json({
         message: 'Viagem guardada com sucesso!',
-        tripId
+        tripId: trip.id
       });
     } catch (error) {
       console.error('Error saving trip:', error);

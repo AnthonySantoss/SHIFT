@@ -1,75 +1,144 @@
-const AuditModel = require('../models/audit.model');
-const DriverModel = require('../models/driver.model');
+const { Audit, Driver, DriverHistory } = require('../models');
+const { awardBadges } = require('../utils/badgeHelper');
+const { auditSchema } = require('../utils/validation');
 
 class AuditController {
   static async submitAudit(req, res) {
     try {
-      const { driverPlate, roadContext, weatherContext, score, ratingStars, positiveActions, infractions, feedback } = req.body;
+      // 1. Validate Schema
+      const validation = auditSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: 'Dados da auditoria inválidos.', 
+          details: validation.error.format() 
+        });
+      }
 
-      if (!driverPlate) {
-        return res.status(400).json({ error: 'A matrícula do veículo é obrigatória.' });
-      }
-      if (!ratingStars || ratingStars < 1 || ratingStars > 5) {
-        return res.status(400).json({ error: 'A nota final em estrelas (1 a 5) é obrigatória.' });
-      }
+      const { 
+        driverPlate, 
+        roadContext, 
+        weatherContext, 
+        score, 
+        ratingStars, 
+        positiveActions, 
+        infractions, 
+        feedback,
+        latitude,
+        longitude
+      } = validation.data;
 
       const cleanPlate = driverPlate.toUpperCase().trim();
 
       // Check if driver exists, if not create a new driver record
-      let driver = await DriverModel.findByPlate(cleanPlate);
+      let driver = await Driver.findOne({ where: { plate: cleanPlate } });
       if (!driver) {
         // Registering new driver dynamically when first audited
         const name = `Motorista ${cleanPlate}`;
-        await DriverModel.create(cleanPlate, name, 100, 0, 'good', [], 5.0);
-        driver = await DriverModel.findByPlate(cleanPlate);
+        driver = await Driver.create({
+          plate: cleanPlate,
+          name,
+          score: 100,
+          trips: 0,
+          status: 'good',
+          badges: [],
+          rating: 5.0
+        });
       }
 
       // Save audit log
-      const auditId = await AuditModel.create({
-        passengerId: req.user ? req.user.id : null,
-        driverPlate: cleanPlate,
-        roadContext: roadContext || 'urbana',
-        weatherContext: weatherContext || 'limpo',
-        score: score !== undefined ? score : 100,
-        ratingStars,
-        positiveActions: positiveActions || [],
+      const auditScore = score !== undefined ? score : 100;
+      const audit = await Audit.create({
+        passenger_id: req.user ? req.user.id : null,
+        driver_plate: cleanPlate,
+        road_context: roadContext || 'urbana',
+        weather_context: weatherContext || 'limpo',
+        score: auditScore,
+        rating_stars: ratingStars,
+        positive_actions: positiveActions || [],
         infractions: infractions || [],
-        feedback: feedback || ''
+        feedback: feedback || '',
+        latitude,
+        longitude
       });
 
-      // Recalculate and update the driver's profile score and rating (Real-time dynamic data update!)
-      const updatedMetrics = await DriverModel.updateScoreAndRating(cleanPlate, score !== undefined ? score : 100, ratingStars);
-
-      // Create a driver history entry for safety audits (optional but nice)
-      // Since it's dynamic, we could insert a driver_history entry too!
-      // This ensures when you search the plate, you see this audit in their history list immediately!
-      const sqlite3 = require('sqlite3').verbose();
-      const path = require('path');
-      const dbPath = path.join(__dirname, '..', 'database', 'db.sqlite');
-      const db = new sqlite3.Database(dbPath);
+      // Recalculate and update the driver's profile score and rating
+      const audits = await Audit.findAll({ where: { driver_plate: cleanPlate } });
+      const totalAuditsCount = audits.length;
+      const sumStars = audits.reduce((acc, a) => acc + a.rating_stars, 0);
+      const avgRating = parseFloat((sumStars / totalAuditsCount).toFixed(1));
       
+      const sumScores = audits.reduce((acc, a) => acc + a.score, 0);
+      const avgScore = Math.round(sumScores / totalAuditsCount);
+
+      let updatedStatus = 'good';
+      if (avgScore > 90) updatedStatus = 'excellent';
+      else if (avgScore < 60) updatedStatus = 'danger';
+
+      const updatedBadges = awardBadges(driver, null, { score: auditScore, ratingStars });
+
+      await driver.update({
+        rating: avgRating,
+        score: avgScore,
+        status: updatedStatus,
+        badges: updatedBadges
+      });
+
+      // Create a driver history entry
       const issueString = infractions && infractions.length > 0 ? infractions.join(', ') : null;
-      const statusText = score > 80 ? 'perfect' : score > 60 ? 'good' : 'danger';
+      const statusText = auditScore > 80 ? 'perfect' : auditScore > 60 ? 'good' : 'danger';
       const durationText = 'Corrida Auditada';
       const dateText = 'Hoje, ' + new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 
-      db.run(
-        `INSERT INTO driver_history (driver_id, date, score, duration, status, issue) VALUES (?, ?, ?, ?, ?, ?)`,
-        [driver.id, dateText, score, durationText, statusText, issueString],
-        function(err) {
-          if (err) console.error('Error logging history entry:', err);
-          db.close();
-        }
-      );
+      await DriverHistory.create({
+        driver_id: driver.id,
+        date: dateText,
+        score: auditScore,
+        duration: durationText,
+        status: statusText,
+        issue: issueString
+      });
 
       return res.status(201).json({
         message: 'Auditoria enviada e processada com sucesso!',
-        auditId,
-        updatedMetrics
+        auditId: audit.id,
+        updatedMetrics: {
+          rating: avgRating,
+          score: avgScore
+        }
       });
     } catch (error) {
       console.error('Error submitting audit:', error);
       return res.status(500).json({ error: 'Erro interno ao submeter a auditoria.' });
+    }
+  }
+
+  static async getHotspots(req, res) {
+    try {
+      // Fetch audits that have infractions and coordinates
+      const audits = await Audit.findAll({
+        where: {
+          latitude: { [require('sequelize').Op.ne]: null },
+          longitude: { [require('sequelize').Op.ne]: null }
+        },
+        attributes: ['latitude', 'longitude', 'infractions', 'score'],
+        order: [['created_at', 'DESC']],
+        limit: 100
+      });
+
+      // Filter only those with actual infractions
+      const hotspots = audits
+        .filter(a => a.infractions && a.infractions.length > 0)
+        .map(a => ({
+          lat: a.latitude,
+          lng: a.longitude,
+          infractions: a.infractions,
+          riskLevel: a.score < 60 ? 'high' : 'medium'
+        }));
+
+      return res.json({ hotspots });
+    } catch (error) {
+      console.error('Error fetching hotspots:', error);
+      return res.status(500).json({ error: 'Erro ao buscar zonas de risco.' });
     }
   }
 }

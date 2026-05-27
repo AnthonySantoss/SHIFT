@@ -1,37 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { HeartPulse, Target, Users, Smartphone, CheckCircle, BookOpen } from 'lucide-react-native';
+import { HeartPulse, Target, Users, Smartphone, CheckCircle, BookOpen, ChevronRight, Trophy, Star, Shield } from 'lucide-react-native';
 import ApiService from '../../models/api.model';
+import getTheme from '../../theme';
+import Skeleton from '../components/Skeleton';
 
 export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshProfile }) {
+  const theme = getTheme(isDarkMode);
+  const [activeSubTab, setActiveSubTab] = useState('missions'); // 'missions' or 'ranking'
   const [challenges, setChallenges] = useState([]);
   const [tips, setTips] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTip, setSelectedTip] = useState(null);
   const [readTipIds, setReadTipIds] = useState([]);
-
-  // Theme colors
-  const colors = {
-    bg: isDarkMode ? '#0F1015' : '#F1F5F9',
-    cardBg: isDarkMode ? '#171923' : '#FFFFFF',
-    border: isDarkMode ? '#222530' : '#E2E8F0',
-    title: isDarkMode ? '#FFFFFF' : '#0F172A',
-    text: isDarkMode ? '#94A3B8' : '#475569',
-  };
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     let active = true;
     async function loadData() {
       try {
-        const [loadedChallenges, loadedTips, storedReadTips] = await Promise.all([
+        const [loadedChallenges, loadedTips, loadedRanking, storedReadTips] = await Promise.all([
           ApiService.fetchChallenges(),
           ApiService.fetchTips(),
+          ApiService.fetchLeaderboard(),
           AsyncStorage.getItem('@shift_read_tip_ids')
         ]);
         if (active) {
           setChallenges(loadedChallenges);
           setTips(loadedTips);
+          setLeaderboard(loadedRanking.leaderboard || []);
           if (storedReadTips) {
             setReadTipIds(JSON.parse(storedReadTips));
           }
@@ -46,30 +45,48 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshPro
     return () => { active = false; };
   }, []);
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [loadedChallenges, loadedTips, loadedRanking, storedReadTips] = await Promise.all([
+        ApiService.fetchChallenges(),
+        ApiService.fetchTips(),
+        ApiService.fetchLeaderboard(),
+        AsyncStorage.getItem('@shift_read_tip_ids')
+      ]);
+      setChallenges(loadedChallenges);
+      setTips(loadedTips);
+      setLeaderboard(loadedRanking.leaderboard || []);
+      if (storedReadTips) {
+        setReadTipIds(JSON.parse(storedReadTips));
+      }
+    } catch (err) {
+      console.error('Error refreshing Maio Amarelo campaign data:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
   const getChallengeIcon = (title) => {
     const t = title.toLowerCase();
-    if (t.includes('auditor') || t.includes('cidadão')) return <Users size={20} color="#6366F1" />;
-    if (t.includes('foco') || t.includes('celular') || t.includes('telemóvel')) return <Smartphone size={20} color="#3B82F6" />;
-    return <Target size={20} color="#F59E0B" />;
+    if (t.includes('auditor') || t.includes('cidadão')) return <Users size={20} color={theme.colors.secondary} />;
+    if (t.includes('foco') || t.includes('celular') || t.includes('telemóvel')) return <Smartphone size={20} color={theme.colors.info} />;
+    return <Target size={20} color={theme.colors.primary} />;
   };
 
   const getTipIconColor = (subtitle) => {
     const s = subtitle ? subtitle.toLowerCase() : '';
-    if (s.includes('mito') || s.includes('fato')) return '#F59E0B';
-    if (s.includes('fadiga') || s.includes('sono')) return '#EF4444';
-    if (s.includes('física') || s.includes('reação') || s.includes('pista')) return '#3B82F6';
-    return '#10B981';
+    if (s.includes('mito') || s.includes('fato')) return theme.colors.primary;
+    if (s.includes('fadiga') || s.includes('sono')) return theme.colors.danger;
+    if (s.includes('física') || s.includes('reação') || s.includes('pista')) return theme.colors.info;
+    return theme.colors.success;
   };
 
   const handleCompleteTip = async (tip) => {
     try {
       if (tip && tip.points) {
         await ApiService.addBonusPoints(tip.points);
-        if (refreshProfile) {
-          await refreshProfile();
-        }
-        
-        // Persist read status locally so that the tip disappears!
+        if (refreshProfile) await refreshProfile();
         const updatedReadIds = [...readTipIds, tip.id];
         setReadTipIds(updatedReadIds);
         await AsyncStorage.setItem('@shift_read_tip_ids', JSON.stringify(updatedReadIds));
@@ -83,130 +100,206 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshPro
 
   if (loading) {
     return (
-      <View style={[styles.loadingBox, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator size="small" color="#F59E0B" />
-        <Text style={[styles.loadingText, { color: colors.text }]}>A carregar desafios de segurança...</Text>
-      </View>
+      <ScrollView style={[styles.container, { backgroundColor: theme.colors.bg }]} contentContainerStyle={styles.content}>
+        <Skeleton height={180} borderRadius={24} isDarkMode={isDarkMode} />
+        <Skeleton width="50%" height={14} style={{ marginTop: 20, marginBottom: 10 }} isDarkMode={isDarkMode} />
+        <View style={{ gap: 12 }}>
+          <Skeleton height={80} borderRadius={16} isDarkMode={isDarkMode} />
+          <Skeleton height={80} borderRadius={16} isDarkMode={isDarkMode} />
+          <Skeleton height={80} borderRadius={16} isDarkMode={isDarkMode} />
+        </View>
+      </ScrollView>
     );
   }
 
-  // Calculate global completed challenges ratio
   const completedCount = challenges.filter(c => c.is_completed === 1).length;
   const totalCount = challenges.length;
   const progressPct = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView style={[styles.container, { backgroundColor: colors.bg }]} contentContainerStyle={styles.content}>
-        {/* Premium Maio Amarelo Campaign Banner */}
-        <View style={styles.banner}>
-          <View style={styles.bannerBackdrop}>
-            <HeartPulse size={140} color="rgba(0, 0, 0, 0.08)" style={styles.bannerIconBg} />
-          </View>
-          <View style={styles.bannerContent}>
-            <View style={styles.badgeContainer}>
-              <Target size={12} color="#F59E0B" />
-              <Text style={styles.badgeText}>DESAFIO MENSAL</Text>
-            </View>
-            <Text style={styles.bannerTitle}>Maio Amarelo</Text>
-            <Text style={styles.bannerSubtitle}>
-              Cumpra missões diárias de segurança no trânsito para ganhar pontos no Clube SHIFT.
-            </Text>
-            
-            <View style={styles.progressSection}>
-              <View style={styles.progressInfo}>
-                <Text style={styles.progressLabel}>Progresso Global</Text>
-                <Text style={styles.progressValue}>{completedCount}/{totalCount} <Text style={styles.progressValueSmall}>Missões</Text></Text>
-              </View>
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
-              </View>
-            </View>
-          </View>
-        </View>
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      {/* Sub-Tab Navigation */}
+      <View style={[styles.subTabNav, { borderBottomColor: theme.colors.border }]}>
+        <TouchableOpacity 
+          style={[styles.subTab, activeSubTab === 'missions' && { borderBottomColor: theme.colors.primary }]}
+          onPress={() => setActiveSubTab('missions')}
+        >
+          <HeartPulse size={16} color={activeSubTab === 'missions' ? theme.colors.primary : theme.colors.muted} />
+          <Text style={[styles.subTabText, { color: activeSubTab === 'missions' ? theme.colors.title : theme.colors.muted }]}>Missões</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.subTab, activeSubTab === 'ranking' && { borderBottomColor: theme.colors.primary }]}
+          onPress={() => setActiveSubTab('ranking')}
+        >
+          <Trophy size={16} color={activeSubTab === 'ranking' ? theme.colors.primary : theme.colors.muted} />
+          <Text style={[styles.subTabText, { color: activeSubTab === 'ranking' ? theme.colors.title : theme.colors.muted }]}>Ranking</Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Daily Missions */}
-        <Text style={[styles.sectionTitle, { color: colors.title }]}>MISSÕES ATIVAS DE HOJE</Text>
-        
-        <View style={styles.missionsList}>
-          {challenges.map((c) => (
-            <View 
-              key={c.id} 
-              style={[
-                styles.missionCard, 
-                c.is_completed === 1 && styles.completedCard,
-                { backgroundColor: colors.cardBg, borderColor: colors.border }
-              ]}
-            >
-              <View style={[styles.missionIconContainer, c.is_completed === 1 && styles.completedIconContainer]}>
-                {getChallengeIcon(c.title)}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+        }>
+        {activeSubTab === 'missions' ? (
+          <>
+            {/* Premium Maio Amarelo Campaign Banner */}
+            <View style={[styles.banner, { backgroundColor: theme.colors.primary }, theme.shadows.medium]}>
+              <View style={styles.bannerBackdrop}>
+                <HeartPulse size={140} color="rgba(0, 0, 0, 0.08)" style={styles.bannerIconBg} />
               </View>
-              <View style={styles.missionDetails}>
-                <Text 
+              <View style={styles.bannerContent}>
+                <View style={[styles.badgeContainer, { backgroundColor: theme.colors.secondary }]}>
+                  <Target size={12} color={theme.colors.primary} />
+                  <Text style={[styles.badgeText, { color: theme.colors.primary }]}>DESAFIO MENSAL</Text>
+                </View>
+                <Text style={[styles.bannerTitle, { color: theme.colors.onPrimary }]}>Maio Amarelo</Text>
+                <Text style={[styles.bannerSubtitle, { color: theme.colors.onPrimary + 'E6' }]}>
+                  Cumpra missões diárias de segurança no trânsito para ganhar pontos no Clube SHIFT.
+                </Text>
+                
+                <View style={[styles.progressSection, { backgroundColor: 'rgba(0, 0, 0, 0.08)' }]}>
+                  <View style={styles.progressInfo}>
+                    <Text style={[styles.progressLabel, { color: theme.colors.onPrimary }]}>Progresso Global</Text>
+                    <Text style={[styles.progressValue, { color: theme.colors.onPrimary }]}>{completedCount}/{totalCount} <Text style={styles.progressValueSmall}>Missões</Text></Text>
+                  </View>
+                  <View style={[styles.progressBarBg, { backgroundColor: 'rgba(0, 0, 0, 0.15)' }]}>
+                    <View style={[styles.progressBarFill, { width: `${progressPct}%`, backgroundColor: theme.colors.onPrimary }]} />
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Daily Missions */}
+            <Text style={[styles.sectionTitle, { color: theme.colors.title }]}>MISSÕES ATIVAS DE HOJE</Text>
+            
+            <View style={styles.missionsList}>
+              {challenges.map((c) => (
+                <View 
+                  key={c.id} 
                   style={[
-                    styles.missionName, 
-                    c.is_completed === 1 && styles.completedText, 
-                    { color: colors.title }
+                    styles.missionCard, 
+                    { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
+                    c.is_completed === 1 && styles.completedCard,
+                    theme.shadows.soft
                   ]}
                 >
-                  {c.title}
-                </Text>
-                <Text style={[styles.missionDesc, { color: c.is_completed === 1 ? '#94A3B8' : colors.text }]}>
-                  {c.description} <Text style={{ color: '#F59E0B', fontWeight: '800' }}>(+{c.points} PTS)</Text>
-                </Text>
-              </View>
-              {c.is_completed === 1 ? (
-                <CheckCircle size={22} color="#10B981" />
-              ) : (
-                <TouchableOpacity
-                  style={styles.goButton}
-                  onPress={() => setActiveTab(c.role_restriction === 'passenger' ? 'passenger' : 'dashboard')}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.goButtonText}>Ir</Text>
-                </TouchableOpacity>
-              )}
+                  <View style={[
+                    styles.missionIconContainer, 
+                    { backgroundColor: `${theme.colors.primary}1A` },
+                    c.is_completed === 1 && { backgroundColor: theme.colors.border }
+                  ]}>
+                    {getChallengeIcon(c.title)}
+                  </View>
+                  <View style={styles.missionDetails}>
+                    <Text 
+                      style={[
+                        styles.missionName, 
+                        { color: theme.colors.title },
+                        c.is_completed === 1 && styles.completedText
+                      ]}
+                    >
+                      {c.title}
+                    </Text>
+                    <Text style={[styles.missionDesc, { color: c.is_completed === 1 ? theme.colors.muted : theme.colors.text }]}>
+                      {c.description} <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>(+{c.points} PTS)</Text>
+                    </Text>
+                  </View>
+                  {c.is_completed === 1 ? (
+                    <CheckCircle size={22} color={theme.colors.success} />
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.goButton, { backgroundColor: theme.colors.secondary }]}
+                      onPress={() => setActiveTab(c.role_restriction === 'passenger' ? 'passenger' : 'dashboard')}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronRight size={18} color={theme.colors.onSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
 
-        {/* Quick Education Tips */}
-        <View style={[styles.educationCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <View style={styles.eduHeader}>
-            <BookOpen size={18} color="#F59E0B" />
-            <Text style={[styles.eduTitle, { color: colors.title }]}>Dicas Rápidas</Text>
-          </View>
-          
-          <View style={styles.tipsList}>
-            {tips.filter(t => !readTipIds.includes(t.id)).length === 0 ? (
-              <View style={styles.allReadContainer}>
-                <CheckCircle size={20} color="#10B981" />
-                <Text style={[styles.allReadText, { color: colors.title }]}>
-                  Parabéns! Já leu todas as dicas rápidas de segurança de hoje. 🎉
-                </Text>
+            {/* Quick Education Tips */}
+            <View style={[styles.educationCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }, theme.shadows.soft]}>
+              <View style={styles.eduHeader}>
+                <BookOpen size={18} color={theme.colors.primary} />
+                <Text style={[styles.eduTitle, { color: theme.colors.title }]}>Dicas Rápidas</Text>
               </View>
-            ) : (
-              tips
-                .filter(t => !readTipIds.includes(t.id))
-                .map((t) => (
-                  <TouchableOpacity 
-                    key={t.id} 
-                    style={[styles.tipItem, { backgroundColor: colors.bg }]} 
-                    activeOpacity={0.7}
-                    onPress={() => setSelectedTip(t)}
-                  >
-                    <Text style={[styles.tipTitle, { color: colors.title }]}>{t.title}</Text>
-                    <View style={styles.ptsBadge}>
-                      <Text style={styles.ptsText}>+{t.points} PTS</Text>
+              
+              <View style={styles.tipsList}>
+                {tips.filter(t => !readTipIds.includes(t.id)).length === 0 ? (
+                  <View style={[styles.allReadContainer, { backgroundColor: `${theme.colors.success}14`, borderColor: `${theme.colors.success}26` }]}>
+                    <CheckCircle size={20} color={theme.colors.success} />
+                    <Text style={[styles.allReadText, { color: theme.colors.title }]}>
+                      Parabéns! Já leu todas as dicas rápidas de hoje. 🎉
+                    </Text>
+                  </View>
+                ) : (
+                  tips
+                    .filter(t => !readTipIds.includes(t.id))
+                    .map((t) => (
+                      <TouchableOpacity 
+                        key={t.id} 
+                        style={[styles.tipItem, { backgroundColor: theme.colors.bg }]} 
+                        activeOpacity={0.7}
+                        onPress={() => setSelectedTip(t)}
+                      >
+                        <Text style={[styles.tipTitle, { color: theme.colors.title }]}>{t.title}</Text>
+                        <View style={[styles.ptsBadge, { backgroundColor: `${theme.colors.primary}26` }]}>
+                          <Text style={[styles.ptsText, { color: theme.colors.primary }]}>+{t.points} PTS</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                )}
+              </View>
+            </View>
+          </>
+        ) : (
+          /* RANKING SECTION */
+          <View style={styles.rankingContainer}>
+            <View style={[styles.rankingHeaderCard, { backgroundColor: theme.colors.secondary }, theme.shadows.medium]}>
+              <Trophy size={40} color={theme.colors.primary} style={styles.rankingIcon} />
+              <Text style={[styles.rankingTitle, { color: theme.colors.onSecondary }]}>Ranking de Elite</Text>
+              <Text style={[styles.rankingSubtitle, { color: theme.colors.onSecondary + 'B3' }]}>Os motoristas mais seguros da semana</Text>
+            </View>
+
+            <View style={styles.leaderboardList}>
+              {leaderboard.map((driver, index) => (
+                <View key={driver.id} style={[styles.rankItem, { borderBottomColor: theme.colors.border }]}>
+                  <View style={styles.rankPosContainer}>
+                    {index < 3 ? (
+                      <Trophy size={20} color={index === 0 ? '#F59E0B' : index === 1 ? '#94A3B8' : '#B45309'} />
+                    ) : (
+                      <Text style={[styles.rankPosText, { color: theme.colors.muted }]}>{index + 1}</Text>
+                    )}
+                  </View>
+                  <View style={styles.rankDriverInfo}>
+                    <Text style={[styles.rankDriverName, { color: theme.colors.title }]}>{driver.name}</Text>
+                    <View style={styles.rankDriverBadges}>
+                      {driver.badges && driver.badges.slice(0, 2).map((b, i) => (
+                        <View key={i} style={[styles.rankBadgeMini, { backgroundColor: `${theme.colors.primary}1A` }]}>
+                          <Text style={[styles.rankBadgeMiniText, { color: theme.colors.primary }]}>{b}</Text>
+                        </View>
+                      ))}
                     </View>
-                  </TouchableOpacity>
-                ))
-            )}
+                  </View>
+                  <View style={styles.rankStats}>
+                    <View style={styles.rankScoreRow}>
+                      <Star size={10} color={theme.colors.primary} fill={theme.colors.primary} />
+                      <Text style={[styles.rankScoreVal, { color: theme.colors.primary }]}>{driver.score}%</Text>
+                    </View>
+                    <Text style={[styles.rankTripsText, { color: theme.colors.muted }]}>{driver.trips} viagens</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
       </ScrollView>
 
-      {/* Floating Interactive Education Modal */}
+      {/* Education Modal */}
       {selectedTip && (
         <View style={StyleSheet.absoluteFillObject}>
           <TouchableOpacity 
@@ -215,20 +308,19 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshPro
             activeOpacity={1}
           />
           <View style={styles.modalCenteredView}>
-            <View style={[styles.modalCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <View style={[styles.modalCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }, theme.shadows.hard]}>
               <View style={[styles.modalIconBadge, { backgroundColor: getTipIconColor(selectedTip.subtitle) + '1C' }]}>
                 <BookOpen size={24} color={getTipIconColor(selectedTip.subtitle)} />
               </View>
-              <Text style={styles.modalSub}>{selectedTip.subtitle ? selectedTip.subtitle.toUpperCase() : ''}</Text>
-              <Text style={[styles.modalTitle, { color: colors.title }]}>{selectedTip.title}</Text>
-              <Text style={[styles.modalBody, { color: colors.text }]}>{selectedTip.content}</Text>
-              
+              <Text style={[styles.modalSub, { color: theme.colors.primary }]}>{selectedTip.subtitle ? selectedTip.subtitle.toUpperCase() : ''}</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.title }]}>{selectedTip.title}</Text>
+              <Text style={[styles.modalBody, { color: theme.colors.text }]}>{selectedTip.content}</Text>
               <TouchableOpacity 
-                style={styles.modalCloseBtn}
+                style={[styles.modalCloseBtn, { backgroundColor: theme.colors.primary }]}
                 onPress={() => handleCompleteTip(selectedTip)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.modalCloseBtnText}>Concluir Leitura (+{selectedTip.points} PTS)</Text>
+                <Text style={[styles.modalCloseBtnText, { color: theme.colors.onPrimary }]}>Concluir Leitura (+{selectedTip.points} PTS)</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -239,6 +331,25 @@ export default function MaioAmareloScreen({ isDarkMode, setActiveTab, refreshPro
 }
 
 const styles = StyleSheet.create({
+  subTabNav: {
+    flexDirection: 'row',
+    height: 48,
+    borderBottomWidth: 1,
+    paddingHorizontal: 8,
+  },
+  subTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  subTabText: {
+    fontSize: 13,
+    fontWeight: '850',
+  },
   container: {
     flex: 1,
   },
@@ -259,16 +370,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   banner: {
-    backgroundColor: '#F59E0B',
     borderRadius: 24,
     padding: 20,
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
   },
   bannerBackdrop: {
     position: 'absolute',
@@ -285,7 +390,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#351603',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 99,
@@ -295,26 +399,22 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#F59E0B',
     letterSpacing: 0.5,
   },
   bannerTitle: {
     fontSize: 26,
     fontWeight: '900',
-    color: '#351603',
     letterSpacing: -0.5,
     marginBottom: 4,
   },
   bannerSubtitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#4B2206',
     lineHeight: 16,
     opacity: 0.9,
     marginBottom: 16,
   },
   progressSection: {
-    backgroundColor: 'rgba(53, 22, 3, 0.08)',
     borderRadius: 12,
     padding: 10,
   },
@@ -327,12 +427,10 @@ const styles = StyleSheet.create({
   progressLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#351603',
   },
   progressValue: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#351603',
   },
   progressValueSmall: {
     fontSize: 9,
@@ -340,13 +438,11 @@ const styles = StyleSheet.create({
   },
   progressBarBg: {
     height: 6,
-    backgroundColor: 'rgba(53, 22, 3, 0.15)',
     borderRadius: 99,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#351603',
     borderRadius: 99,
   },
   sectionTitle: {
@@ -374,12 +470,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  completedIconContainer: {
-    backgroundColor: 'rgba(148, 163, 184, 0.1)',
   },
   missionDetails: {
     flex: 1,
@@ -398,15 +490,11 @@ const styles = StyleSheet.create({
     lineHeight: 12,
   },
   goButton: {
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    width: 32,
+    height: 32,
     borderRadius: 8,
-  },
-  goButtonText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   educationCard: {
     borderRadius: 20,
@@ -440,7 +528,6 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
   ptsBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -448,7 +535,83 @@ const styles = StyleSheet.create({
   ptsText: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#D97706',
+  },
+  rankingContainer: {
+    gap: 16,
+  },
+  rankingHeaderCard: {
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  rankingIcon: {
+    marginBottom: 4,
+  },
+  rankingTitle: {
+    fontSize: 20,
+    fontWeight: '950',
+  },
+  rankingSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  leaderboardList: {
+    gap: 2,
+  },
+  rankItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+  },
+  rankPosContainer: {
+    width: 36,
+    alignItems: 'center',
+  },
+  rankPosText: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  rankDriverInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  rankDriverName: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  rankDriverBadges: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  rankBadgeMini: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  rankBadgeMiniText: {
+    fontSize: 8,
+    fontWeight: '850',
+    textTransform: 'uppercase',
+  },
+  rankStats: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  rankScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rankScoreVal: {
+    fontSize: 16,
+    fontWeight: '950',
+  },
+  rankTripsText: {
+    fontSize: 9,
+    fontWeight: '700',
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -470,11 +633,6 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     gap: 12,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
   },
   modalIconBadge: {
     width: 54,
@@ -487,7 +645,6 @@ const styles = StyleSheet.create({
   modalSub: {
     fontSize: 9,
     fontWeight: '900',
-    color: '#F59E0B',
     letterSpacing: 1.5,
   },
   modalTitle: {
@@ -503,7 +660,6 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   modalCloseBtn: {
-    backgroundColor: '#F59E0B',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -512,7 +668,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalCloseBtnText: {
-    color: '#351603',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -523,10 +678,8 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 14,
     paddingHorizontal: 10,
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.15)',
     marginTop: 2,
   },
   allReadText: {
